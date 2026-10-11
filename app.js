@@ -195,7 +195,8 @@ class TournamentApp {
         // בדיקה אם המשתמש כבר מחובר ב-sessionStorage
         try {
             const savedUser = JSON.parse(sessionStorage.getItem('tournament_current_user') || 'null');
-            if (savedUser && savedUser.email) {
+            // שחזור חיבור רק לכניסת Google או לצופה; חיבור ישן שנעשה באימייל וסיסמה אינו משוחזר
+            if (savedUser && savedUser.email && (savedUser.provider === 'google' || savedUser.provider === 'guest')) {
                 this.authenticateUser(savedUser.email, false, savedUser.name, savedUser.provider);
                 return;
             }
@@ -471,7 +472,7 @@ class TournamentApp {
         if (step === 'viewer') {
             this.populateTournamentSelectors();
         } else if (step === 'manager') {
-            document.getElementById('loginEmail')?.focus();
+            document.querySelector('#login-step-manager .btn-google-auth')?.focus();
         }
     }
 
@@ -734,6 +735,10 @@ class TournamentApp {
     }
 
     handleLogin() {
+        // כניסת מנהלים מתבצעת אך ורק דרך Google; טופס האימייל והסיסמה הוסר
+        this.showAlert("הכניסה למערכת מתבצעת באמצעות חשבון Google בלבד.", "warning");
+        return;
+        // eslint-disable-next-line no-unreachable
         const emailInput = document.getElementById('loginEmail');
         const passInput = document.getElementById('loginPassword');
         const enteredEmail = emailInput ? emailInput.value.trim().toLowerCase() : '';

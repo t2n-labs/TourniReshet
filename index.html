@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.46">
+    <link rel="stylesheet" href="./style.css?v=4.47">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -98,27 +98,6 @@
                         <span>המשך עם חשבון Google</span>
                     </button>
                 </div>
-
-                <div class="auth-divider">
-                    <span id="authDividerText">או באמצעות כתובת אימייל</span>
-                </div>
-
-                <!-- טופס כניסה למנהל (Login בלבד) -->
-                <form id="form-login" class="login-form" onsubmit="event.preventDefault(); app.handleLogin();">
-                    <div class="login-field">
-                        <label for="loginEmail">📧 כתובת אימייל:</label>
-                        <input type="email" id="loginEmail" class="login-input" placeholder="name@example.com" autocomplete="email">
-                    </div>
-
-                    <div class="login-field">
-                        <label for="loginPassword">🔒 סיסמה:</label>
-                        <input type="password" id="loginPassword" class="login-input" placeholder="••••••••" autocomplete="current-password">
-                    </div>
-
-                    <button type="submit" class="login-btn-primary">
-                        כניסה למערכת (Login) 🚀
-                    </button>
-                </form>
 
                 <button type="button" class="login-back-link" onclick="app.showLoginStep('choice')">חזרה →</button>
             </div>
@@ -834,7 +813,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.46"></script>
+    <script src="./app.js?v=4.47"></script>
 </body>
 </html>
 
