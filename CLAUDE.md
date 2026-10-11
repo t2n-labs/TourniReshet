@@ -10,8 +10,8 @@ A web-based, mobile-responsive application for managing multi-stage sports/gamin
 - **Database & Auth**: Google Firebase (Firestore Database + Firebase Authentication via Google Identity).
 - **Deployment**: GitHub Pages (static web hosting).
 - **Primary Language of UI**: Hebrew (RTL - Right to Left interface).
-- **Owner / Repo**: `noamsee/Two-Stage-Tournament-Manager`
-- **Current Production Site**: `https://noamsee.github.io/Two-Stage-Tournament-Manager/`
+- **Owner / Repo**: `t2n-labs/TourniReshet` (transferred from `noamsee/Two-Stage-Tournament-Manager` in October 2026; old git URLs redirect)
+- **Current Production Site**: `https://t2n-labs.github.io/TourniReshet/`
 
 ---
 
@@ -60,7 +60,7 @@ A web-based, mobile-responsive application for managing multi-stage sports/gamin
 ### Step 1: Clone or Fork the Repository
 Tomer can work in two ways:
 #### Option A: Working on his own Fork (Recommended for independent GitHub Pages)
-1. Fork `https://github.com/noamsee/Two-Stage-Tournament-Manager` to `tom260s/Two-Stage-Tournament-Manager`.
+1. Fork `https://github.com/t2n-labs/TourniReshet` to `tom260s/Two-Stage-Tournament-Manager`.
 2. Clone the fork locally:
    ```bash
    git clone https://github.com/tom260s/Two-Stage-Tournament-Manager.git
@@ -75,8 +75,8 @@ Tomer can work in two ways:
 #### Option B: Direct Clone as Collaborator
 If working directly on the parent repository:
 ```bash
-git clone https://github.com/noamsee/Two-Stage-Tournament-Manager.git
-cd Two-Stage-Tournament-Manager
+git clone https://github.com/t2n-labs/TourniReshet.git
+cd TourniReshet
 git checkout tomer
 ```
 
@@ -115,6 +115,15 @@ When writing code or introducing features:
 5. **Git Workflow**:
    - Commit all progress to the `tomer` branch.
    - When ready for production merge into `main`, open a Pull Request targeting `main`.
+
+---
+
+## 🗓️ Match Scheduling (v4.21, merged with the set-based scoring in v4.40)
+- Every match object (group matches in `matches[]` and playoff matches in `playoffMatches`) may carry two optional fields: `scheduledAt` (local `YYYY-MM-DDTHH:MM` string from a `datetime-local` input) and `location` (free text). Unset values are stored as `null`, never `undefined` (Firestore rejects `undefined`).
+- Managers (owner, developer, admin - `isManagerRole`) set them through the `#match-schedule-modal` (`openScheduleModal` / `submitMatchSchedule`). Scheduling stays allowed after the group stage is locked, but not in a closed tournament.
+- `renderUpcomingMatches` shows the next 3 scheduled, unplayed group matches above the group-stage toolbar, following the current house/team filters.
+- `seedPlayoffs` rebuilds the bracket; `copyPlayoffSchedule` carries schedules over by match id. Regenerating the group schedule (`generateTournamentGroups`) discards group match schedules along with scores.
+- The CSV export includes `מועד` and `מיקום` columns.
 
 ---
 
