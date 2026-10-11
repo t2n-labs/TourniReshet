@@ -118,14 +118,8 @@ When writing code or introducing features:
 
 ---
 
-## 🗓️ Match Scheduling (v4.21, merged with the set-based scoring in v4.40)
-- Every match object (group matches in `matches[]` and playoff matches in `playoffMatches`) may carry two optional fields: `scheduledAt` (local `YYYY-MM-DDTHH:MM` string from a `datetime-local` input) and `location` (free text). Unset values are stored as `null`, never `undefined` (Firestore rejects `undefined`).
-- The schedule button and its dialog (`#match-schedule-modal`, `openScheduleModal` / `submitMatchSchedule`) were removed in v4.50, so no new dates can be set from the app. Dates already stored on a match are still shown on its card, and `renderUpcomingMatches` still lists them; a match without a date shows nothing.
-- `renderUpcomingMatches` shows the next 3 scheduled, unplayed group matches above the group-stage toolbar, following the current house/team filters.
-- `seedPlayoffs` rebuilds the bracket; `copyPlayoffSchedule` carries schedules over by match id. Regenerating the group schedule (`generateTournamentGroups`) discards group match schedules along with scores.
-- The CSV export includes `מועד` and `מיקום` columns.
-
----
+## 🗓️ Dates
+- Only a tournament has a date (`eventDate`, shown in its name). Games have no date, time or location: the per-game scheduling feature was removed in v4.51, and `loadTournamentData` deletes any `scheduledAt` / `location` left on games by older versions (they disappear from Firestore on the next save).
 
 ## 📝 Recent Bug Fixes & Context (October 2026)
 - **User Management Deletion**: Fixed an issue where deleted users reappeared on reload. Deletions now call `deleteDoc()` on Firestore document IDs directly.

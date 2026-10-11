@@ -1805,6 +1805,12 @@ class TournamentApp {
         try { sessionStorage.setItem('tournament_active_tournament', tData.id); } catch (e) {}
         this.updateEmptyStateUI();
 
+        // למשחק אין תאריך משלו - רק לטורניר. מועד ומיקום שנשמרו למשחקים בגרסה קודמת מוסרים (ונמחקים בשמירה הבאה)
+        const dropMatchSchedule = (m) => { if (m) { delete m.scheduledAt; delete m.location; } };
+        (tData.matches || []).forEach(dropMatchSchedule);
+        const savedBracket = tData.playoffMatches || {};
+        [...(savedBracket.r16 || []), ...(savedBracket.qf || []), ...(savedBracket.sf || []), savedBracket.final].forEach(dropMatchSchedule);
+
         this.format = tData.format || 'groups_and_playoff';
         this.numGroups = parseInt(tData.numGroups, 10) || (tData.groups ? Object.keys(tData.groups).length : 2);
         this.teamsPerGroup = parseInt(tData.teamsPerGroup, 10) || 4;
@@ -3507,100 +3513,6 @@ class TournamentApp {
     }
 
     /* ========================================================
-       מועדי משחקים: תאריך, שעה ומיקום לכל משחק (בתים ופלייאוף)
-       ======================================================== */
-
-    escapeHtml(value) {
-        return String(value ?? '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    findAnyMatch(matchId) {
-        return (this.matches || []).find(m => m.id === matchId) || this.findPlayoffMatch(matchId) || null;
-    }
-
-    getMatchDate(m) {
-        if (!m || !m.scheduledAt) return null;
-        const d = new Date(m.scheduledAt);
-        return isNaN(d.getTime()) ? null : d;
-    }
-
-    formatMatchSchedule(m) {
-        const parts = [];
-        const d = this.getMatchDate(m);
-        if (d) {
-            parts.push(`🗓️ ${d.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric' })}`);
-            parts.push(`🕒 ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}`);
-        }
-        if (m && m.location) parts.push(`📍 ${this.escapeHtml(m.location)}`);
-        return parts.join(' • ');
-    }
-
-    // כפתור קביעת המועד הוסר: מועד שכבר נקבע למשחק עדיין מוצג בכרטיס, ומשחק ללא מועד אינו מציג דבר
-    renderMatchScheduleHtml(m) {
-        const label = this.formatMatchSchedule(m);
-        if (!label) return '';
-        return `
-            <div class="match-schedule-row">
-                <span class="match-schedule-text">${label}</span>
-            </div>
-        `;
-    }
-
-    // המשחקים הבאים: משחקים עם מועד שטרם הוזנה להם תוצאה, לפי סינון הבית והקבוצה הנוכחי
-    renderUpcomingMatches(groupMatches, teamFilter) {
-        const container = document.getElementById('upcoming-matches-container');
-        if (!container) return;
-
-        const pool = teamFilter === 'all'
-            ? groupMatches
-            : groupMatches.filter(m => m.team1Name === teamFilter || m.team2Name === teamFilter);
-        const upcoming = pool
-            .filter(m => this.getMatchDate(m) && m.winner !== 'team1' && m.winner !== 'team2')
-            .sort((a, b) => this.getMatchDate(a) - this.getMatchDate(b))
-            .slice(0, 3);
-
-        if (upcoming.length === 0) {
-            container.innerHTML = '';
-            container.classList.add('hidden');
-            return;
-        }
-
-        container.innerHTML = `
-            <h3 class="upcoming-title">⏭️ המשחקים הבאים</h3>
-            <div class="upcoming-list">
-                ${upcoming.map(m => `
-                    <div class="upcoming-item">
-                        <div class="upcoming-teams">${this.escapeHtml(m.team1Name)} <span class="upcoming-vs">נגד</span> ${this.escapeHtml(m.team2Name)}</div>
-                        <div class="upcoming-meta">${m.groupNameHe} • ${this.formatMatchSchedule(m)}</div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-        container.classList.remove('hidden');
-    }
-
-    // שיבוץ מחדש של הפלייאוף בונה עץ חדש; המועדים שכבר נקבעו למשחקים נשמרים לפי מזהה המשחק
-    copyPlayoffSchedule(fromBracket, toBracket) {
-        if (!fromBracket || !toBracket) return;
-        const collect = (bracket) => [
-            ...(bracket.r16 || []), ...(bracket.qf || []), ...(bracket.sf || []),
-            ...(bracket.final ? [bracket.final] : [])
-        ];
-        const previous = collect(fromBracket);
-        collect(toBracket).forEach(m => {
-            const old = previous.find(p => p.id === m.id);
-            if (old && (old.scheduledAt || old.location)) {
-                m.scheduledAt = old.scheduledAt || null;
-                m.location = old.location || null;
-            }
-        });
-    }
-
-    /* ========================================================
        משחק במערכות (הטוב משלוש): נתונים, חישוב ותצוגה
        ======================================================== */
 
@@ -3759,7 +3671,6 @@ class TournamentApp {
                     <span>${m.groupNameHe} • מחזור ${m.round}</span>
                     <span class="match-badge">משחק #${m.matchNumber}</span>
                 </div>
-                ${this.renderMatchScheduleHtml(m)}
                 <div class="sets-labels">
                     <span class="sets-labels-spacer"></span>
                     <span class="sets-cells">${sets.map((_, i) => `<span class="set-label">מערכה ${i + 1}</span>`).join('')}</span>
@@ -3808,7 +3719,6 @@ class TournamentApp {
                     <span>${m.groupNameHe} • מחזור ${m.round}</span>
                     <span class="match-badge">משחק #${m.matchNumber}</span>
                 </div>
-                ${this.renderMatchScheduleHtml(m)}
 
                 <div class="match-team-row ${row1WinnerClass}" id="row-${m.id}-1">
                     <span class="team-name ${chosenClass(m.team1Name)}" title="${m.team1Name}">${m.team1Name}</span>
@@ -3874,7 +3784,6 @@ class TournamentApp {
         // הקבוצה שמודגשת בלוח המשחקים: זו שנבחרה בסינון הקבוצה
         const chosenTeam = teamFilter !== 'all' ? teamFilter : null;
 
-        this.renderUpcomingMatches(groupMatches, teamFilter);
 
         const filteredMatches = teamFilter === 'all'
             ? groupMatches
@@ -4408,9 +4317,7 @@ class TournamentApp {
             ...t
         }));
 
-        const previousBracket = this.playoffMatches;
         this.playoffMatches = this.buildInitialKnockoutBracket(this.playoffSeeds, playoffSize);
-        this.copyPlayoffSchedule(previousBracket, this.playoffMatches);
 
         // שלב הבתים ננעל: לוח המשחקים מרונדר מחדש במצב קריאה בלבד גם עבור המנהל
         this.renderMatches();
@@ -4522,7 +4429,6 @@ class TournamentApp {
                         <span class="match-header-title">${m.roundName}</span>
                         ${setsStatus}
                     </div>
-                    ${this.renderMatchScheduleHtml(m)}
                     <div class="sets-labels">
                         <span class="sets-labels-spacer"></span>
                         <span class="sets-cells">${sets.map((_, i) => `<span class="set-label">מערכה ${i + 1}</span>`).join('')}</span>
@@ -4542,7 +4448,6 @@ class TournamentApp {
                         <span class="match-header-title">${m.roundName}</span>
                         ${statusBadge}
                     </div>
-                    ${this.renderMatchScheduleHtml(m)}
 
                     <div class="match-teams-list">
                         <div class="match-team-row ${row1Winner}" id="prow-${m.id}-1">
@@ -5090,10 +4995,6 @@ class TournamentApp {
             const str = String(val);
             return `"${str.replace(/"/g, '""')}"`;
         };
-        const scheduleStr = (m) => {
-            const d = this.getMatchDate(m);
-            return d ? d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : "";
-        };
 
         const rows = [];
         rows.push([escapeCSV("🏆 טורנירשת - נתוני טורניר וטבלאות דירוג")]);
@@ -5137,8 +5038,7 @@ class TournamentApp {
             rows.push([
                 escapeCSV("מספר משחק"), escapeCSV("בית"), escapeCSV("מחזור"),
                 escapeCSV("קבוצה 1"), escapeCSV("תוצאה 1"), escapeCSV("תוצאה 2"),
-                escapeCSV("קבוצה 2"), escapeCSV("מנצחת המשחק"), escapeCSV("סטטוס משחק"), escapeCSV("פירוט מערכות"),
-                escapeCSV("מועד"), escapeCSV("מיקום")
+                escapeCSV("קבוצה 2"), escapeCSV("מנצחת המשחק"), escapeCSV("סטטוס משחק"), escapeCSV("פירוט מערכות")
             ]);
 
             this.matches.forEach(m => {
@@ -5159,8 +5059,7 @@ class TournamentApp {
                     escapeCSV(m.team2Name), escapeCSV(winnerStr), escapeCSV(statusStr),
                     escapeCSV((this.isMultiSet() && Array.isArray(m.sets))
                         ? m.sets.filter(set => set.s1 !== null && set.s1 !== undefined && set.s2 !== null && set.s2 !== undefined).map(set => `${set.s1}-${set.s2}`).join(' | ')
-                        : ""),
-                    escapeCSV(scheduleStr(m)), escapeCSV(m.location || "")
+                        : "")
                 ]);
             });
             rows.push([]);
@@ -5182,7 +5081,7 @@ class TournamentApp {
 
         if (this.playoffMatches) {
             rows.push([escapeCSV("--- משחקי פלייאוף ותוצאות ---")]);
-            rows.push([escapeCSV("שלב"), escapeCSV("משחק"), escapeCSV("קבוצה 1"), escapeCSV("תוצאה 1"), escapeCSV("תוצאה 2"), escapeCSV("קבוצה 2"), escapeCSV("מנצחת / מעפילה"), escapeCSV("מועד"), escapeCSV("מיקום")]);
+            rows.push([escapeCSV("שלב"), escapeCSV("משחק"), escapeCSV("קבוצה 1"), escapeCSV("תוצאה 1"), escapeCSV("תוצאה 2"), escapeCSV("קבוצה 2"), escapeCSV("מנצחת / מעפילה")]);
 
             ['r16', 'qf', 'sf'].forEach(roundKey => {
                 const matches = this.playoffMatches[roundKey];
@@ -5191,7 +5090,7 @@ class TournamentApp {
                         const s1 = m.score1 !== null ? m.score1 : "";
                         const s2 = m.score2 !== null ? m.score2 : "";
                         const win = m.winner ? (m.winner === 'team1' ? m.team1?.teamName : m.team2?.teamName) : "ממתין להכרעה";
-                        rows.push([escapeCSV(roundKey.toUpperCase()), escapeCSV(m.roundName), escapeCSV(m.team1?.teamName || "ממתין"), escapeCSV(s1), escapeCSV(s2), escapeCSV(m.team2?.teamName || "ממתין"), escapeCSV(win), escapeCSV(scheduleStr(m)), escapeCSV(m.location || "")]);
+                        rows.push([escapeCSV(roundKey.toUpperCase()), escapeCSV(m.roundName), escapeCSV(m.team1?.teamName || "ממתין"), escapeCSV(s1), escapeCSV(s2), escapeCSV(m.team2?.teamName || "ממתין"), escapeCSV(win)]);
                     });
                 }
             });
@@ -5201,7 +5100,7 @@ class TournamentApp {
                 const s1 = fn.score1 !== null ? fn.score1 : "";
                 const s2 = fn.score2 !== null ? fn.score2 : "";
                 const win = fn.winner ? (fn.winner === 'team1' ? fn.team1?.teamName : fn.team2?.teamName) : "ממתין להכרעה";
-                rows.push([escapeCSV("גמר"), escapeCSV(fn.roundName), escapeCSV(fn.team1?.teamName || "ממתין"), escapeCSV(s1), escapeCSV(s2), escapeCSV(fn.team2?.teamName || "ממתין"), escapeCSV(win), escapeCSV(scheduleStr(fn)), escapeCSV(fn.location || "")]);
+                rows.push([escapeCSV("גמר"), escapeCSV(fn.roundName), escapeCSV(fn.team1?.teamName || "ממתין"), escapeCSV(s1), escapeCSV(s2), escapeCSV(fn.team2?.teamName || "ממתין"), escapeCSV(win)]);
                 if (fn.winner) {
                     const champ = fn.winner === 'team1' ? fn.team1?.teamName : fn.team2?.teamName;
                     rows.push([]);
