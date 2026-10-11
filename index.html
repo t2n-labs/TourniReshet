@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.47">
+    <link rel="stylesheet" href="./style.css?v=4.48">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -371,7 +371,7 @@
                             <div>
                                 <h3 style="margin: 0;">👥 ניהול משתמשים והרשאות (Users Management)</h3>
                                 <p style="font-size:0.9rem; color:#6b5b45; margin: 4px 0 0 0;">
-                                    צפייה בכל המשתמשים, הוספת משתמשים חדשים, עריכת פרטים (שם, סיסמה, הרשאה), איפוס סיסמאות ומחיקה:
+                                    צפייה בכל המשתמשים, הוספת משתמשים חדשים, עריכת פרטים (שם, הרשאה) ומחיקה:
                                 </p>
                             </div>
                             <button type="button" class="btn-primary" onclick="app.openAddUserModal()">➕ הוסף משתמש חדש</button>
@@ -460,38 +460,6 @@ git push -u origin main</pre>
         </div>
     </div>
 
-    <!-- מודאל עריכת פרטים אישיים ושינוי סיסמה -->
-    <div id="profile-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button class="modal-close-btn" onclick="app.closeProfileModal()">✕</button>
-            <h2 style="margin-top:0; color:#271e16; display:flex; align-items:center; gap:8px;">
-                ⚙️ עריכת פרטים אישיים וסיסמה
-            </h2>
-            <form onsubmit="event.preventDefault(); app.saveProfileChanges();">
-                <div class="login-field" style="margin-top:16px;">
-                    <label for="profileEmailDisplay">📧 אימייל משתמש (לקריאה בלבד):</label>
-                    <input type="email" id="profileEmailDisplay" class="login-input" disabled style="background:#ede2cf; cursor:not-allowed;">
-                </div>
-                <div class="login-field">
-                    <label for="profileNameInput">👤 שם תצוגה מלא:</label>
-                    <input type="text" id="profileNameInput" class="login-input" placeholder="שם מלא">
-                </div>
-                <div class="login-field">
-                    <label for="profileCurrentPassword">🔒 סיסמה נוכחית:</label>
-                    <input type="password" id="profileCurrentPassword" class="login-input" placeholder="הזן סיסמה נוכחית (ברירת מחדל: 1234)">
-                </div>
-                <div class="login-field">
-                    <label for="profileNewPassword">🔑 סיסמה חדשה (אופציונלי):</label>
-                    <input type="password" id="profileNewPassword" class="login-input" placeholder="השאר ריק אם אינך רוצה לשנות סיסמה">
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
-                    <button type="submit" class="btn-primary">💾 שמור שינויים</button>
-                    <button type="button" class="btn-secondary" onclick="app.closeProfileModal()">ביטול</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <!-- מודאל הוספת משתמש חדש ע"י ה-Owner -->
     <div id="add-user-modal" class="modal-overlay hidden">
         <div class="modal-card">
@@ -515,11 +483,6 @@ git push -u origin main</pre>
                         <option value="viewer" selected>👁️ צופה בלבד (Viewer / Guest - צפייה בלבד)</option>
                     </select>
                 </div>
-                <div class="login-field">
-                    <label for="newUserPasswordInput">🔒 סיסמה ראשונית:</label>
-                    <input type="text" id="newUserPasswordInput" class="login-input" value="1234" required placeholder="סיסמה (ברירת מחדל: 1234)">
-                    <small style="color:#6b5b45; font-size:0.8rem;">המשתמש יוכל לשנות את הסיסמה הזו לאחר שיתחבר.</small>
-                </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
                     <button type="submit" class="btn-primary">➕ צור משתמש</button>
                     <button type="button" class="btn-secondary" onclick="app.closeAddUserModal()">ביטול</button>
@@ -528,7 +491,6 @@ git push -u origin main</pre>
         </div>
     </div>
 
-    <!-- מודאל איפוס סיסמה למשתמש ע"י ה-Owner -->
     <!-- מודאל שינוי שם ותאריך הטורניר -->
     <div id="tournament-details-modal" class="modal-overlay hidden">
         <div class="modal-card" style="max-width: 460px;">
@@ -549,29 +511,6 @@ git push -u origin main</pre>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
                     <button type="submit" class="btn-primary">💾 שמור</button>
                     <button type="button" class="btn-secondary" onclick="app.closeTournamentDetailsModal()">ביטול</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="reset-password-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button class="modal-close-btn" onclick="app.closeResetPasswordModal()">✕</button>
-            <h2 style="margin-top:0; color:#271e16; display:flex; align-items:center; gap:8px;">
-                🔑 איפוס סיסמה למשתמש
-            </h2>
-            <p style="font-size:0.9rem; color:#6b5b45; margin-bottom:12px;">
-                איפוס סיסמה עבור: <strong id="resetPasswordUserEmailDisplay" style="direction:ltr; display:inline-block;"></strong>
-            </p>
-            <form onsubmit="event.preventDefault(); app.submitResetPassword();">
-                <input type="hidden" id="resetPasswordTargetEmail">
-                <div class="login-field">
-                    <label for="resetPasswordNewInput">🔒 סיסמה חדשה עבור המשתמש:</label>
-                    <input type="text" id="resetPasswordNewInput" class="login-input" value="1234" required placeholder="הזן סיסמה חדשה">
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
-                    <button type="submit" class="btn-primary">💾 אשר איפוס סיסמה</button>
-                    <button type="button" class="btn-secondary" onclick="app.closeResetPasswordModal()">ביטול</button>
                 </div>
             </form>
         </div>
@@ -602,10 +541,6 @@ git push -u origin main</pre>
                         <option value="viewer">👁️ צופה בלבד (Viewer - צפייה בלבד)</option>
                     </select>
                     <small id="editUserRoleNote" style="color:#6b5b45; font-size:0.8rem; margin-top:4px; display:block;"></small>
-                </div>
-                <div class="login-field">
-                    <label for="editUserPasswordInput">🔒 סיסמה:</label>
-                    <input type="text" id="editUserPasswordInput" class="login-input" required placeholder="סיסמת המשתמש">
                 </div>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px;">
                     <button type="submit" class="btn-primary">💾 שמור שינויים</button>
@@ -813,7 +748,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.47"></script>
+    <script src="./app.js?v=4.48"></script>
 </body>
 </html>
 

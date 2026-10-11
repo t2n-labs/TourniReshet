@@ -49,7 +49,7 @@ class TournamentApp {
         // כניסת מפתח מתבצעת אך ורק דרך Google, כדי שהזהות תאומת ולא תסתמך על סיסמת ברירת מחדל.
         this.DEVELOPER_EMAILS = ["tomerseel@gmail.com"];
         // מנהלים קבועים בקוד (בנוסף למנהלים שהבעלים מוסיף בניהול המשתמשים).
-        // נכנסים במייל וסיסמה; ללא רשומת משתמש הסיסמה היא ברירת המחדל 1234.
+        // כתובת שמופיעה כאן מקבלת הרשאת מנהל כשהיא מתחברת דרך Google.
         this.BUILT_IN_ADMIN_EMAILS = [];
         this.currentRole = 'viewer';
         this.currentUser = null;
@@ -349,7 +349,7 @@ class TournamentApp {
 
     async loginWithGoogle() {
         if (!this.auth) {
-            this.showAlert("שירות האימות אינו זמין כעת. נסה להתחבר עם אימייל וסיסמה.", "error");
+            this.showAlert("שירות ההתחברות של Google אינו זמין כעת. נסה שוב מאוחר יותר.", "error");
             return;
         }
 
@@ -388,7 +388,7 @@ class TournamentApp {
             if (error.code === 'auth/popup-closed-by-user') {
                 this.showAlert("חלון ההתחברות נסגר.", "info");
             } else if (error.code === 'auth/unauthorized-domain') {
-                this.showAlert("דומיין זה טרם אושר ב-Firebase. אפשר להתחבר כרגע עם אימייל וסיסמה (1234).", "warning");
+                this.showAlert("כתובת אתר זו טרם אושרה להתחברות עם Google ב-Firebase. יש לבקש מבעל המערכת להוסיף אותה.", "warning");
             } else {
                 this.showAlert(`שגיאה: ${error.message}`, "error");
             }
@@ -431,7 +431,7 @@ class TournamentApp {
             if (error.code === 'auth/popup-closed-by-user') {
                 this.showAlert("חלון ההתחברות נסגר.", "info");
             } else {
-                this.showAlert("בדפדפן זה ניתן להתחבר ישירות ובמהירות עם אימייל וסיסמה (1234).", "info");
+                this.showAlert("ההתחברות עם Google לא הצליחה בדפדפן זה. נסה שוב או נסה דפדפן אחר.", "info");
             }
         }
     }
@@ -1191,21 +1191,15 @@ class TournamentApp {
             const actionsHtml = isOwnerUser 
                 ? `
                     <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
-                        <button type="button" class="btn-edit-user" onclick="app.openEditUserModal('${u.email}')" title="עריכת שם, סיסמה ופרטים">
+                        <button type="button" class="btn-edit-user" onclick="app.openEditUserModal('${u.email}')" title="עריכת שם ופרטים">
                             ✏️ ערוך פרטים
-                        </button>
-                        <button type="button" class="btn-sm btn-secondary" onclick="app.openResetPasswordModal('${u.email}')" title="איפוס סיסמה">
-                            🔑 איפוס סיסמה
                         </button>
                     </div>
                 `
                 : `
                     <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
-                        <button type="button" class="btn-edit-user" onclick="app.openEditUserModal('${u.email}')" title="עריכת שם, תפקיד וסיסמה">
+                        <button type="button" class="btn-edit-user" onclick="app.openEditUserModal('${u.email}')" title="עריכת שם ותפקיד">
                             ✏️ ערוך פרטים
-                        </button>
-                        <button type="button" class="btn-sm btn-secondary" onclick="app.openResetPasswordModal('${u.email}')" title="איפוס סיסמה למשתמש זה" style="padding:4px 8px; font-size:0.8rem;">
-                            🔑 איפוס סיסמה
                         </button>
                         <button type="button" class="btn-delete-admin" onclick="app.removeUser('${u.email}')" title="מחק משתמש מהמערכת">
                             🗑️ הסר
@@ -1218,7 +1212,7 @@ class TournamentApp {
                     <td style="font-weight:700; color:#271e16;">${u.name}</td>
                     <td style="direction:ltr; text-align:right; font-family:monospace; color:#4a3c2e;">${u.email}</td>
                     <td>${roleBadge}</td>
-                    <td style="font-size:0.85rem; color:#6b5b45;">${u.provider === 'google' ? 'Google OAuth' : 'דוא"ל וסיסמה'}</td>
+                    <td style="font-size:0.85rem; color:#6b5b45;">${u.provider === 'google' ? 'Google' : '-'}</td>
                     <td style="color:#6b5b45; font-size:0.85rem;">${u.registeredAt || '-'}</td>
                     <td style="text-align:center;">${actionsHtml}</td>
                 </tr>
@@ -1242,13 +1236,11 @@ class TournamentApp {
         const dispEmail = document.getElementById('editUserEmailDisplay');
         const nameInp = document.getElementById('editUserNameInput');
         const roleSel = document.getElementById('editUserRoleSelect');
-        const passInp = document.getElementById('editUserPasswordInput');
         const note = document.getElementById('editUserRoleNote');
 
         if (origEmail) origEmail.value = user.email;
         if (dispEmail) dispEmail.value = user.email;
         if (nameInp) nameInp.value = user.name || '';
-        if (passInp) passInp.value = user.password || '1234';
 
         const isOwner = user.email.toLowerCase() === this.OWNER_EMAIL.toLowerCase();
         if (roleSel) {
@@ -1280,20 +1272,14 @@ class TournamentApp {
         const origEmail = document.getElementById('editUserOriginalEmail');
         const nameInp = document.getElementById('editUserNameInput');
         const roleSel = document.getElementById('editUserRoleSelect');
-        const passInp = document.getElementById('editUserPasswordInput');
 
         const email = origEmail ? origEmail.value.trim().toLowerCase() : '';
         const name = nameInp ? nameInp.value.trim() : '';
-        const password = passInp ? passInp.value.trim() : '';
         const isOwner = email === this.OWNER_EMAIL.toLowerCase();
         const role = isOwner ? 'owner' : (roleSel ? roleSel.value : 'viewer');
 
         if (!name) {
             this.showAlert("אנא הזן שם עבור המשתמש.", "error");
-            return;
-        }
-        if (!password) {
-            this.showAlert("אנא הזן סיסמה עבור המשתמש.", "error");
             return;
         }
 
@@ -1305,7 +1291,6 @@ class TournamentApp {
         }
 
         user.name = name;
-        user.password = password;
         if (!isOwner) {
             user.role = role;
         }
@@ -1337,10 +1322,8 @@ class TournamentApp {
         const modal = document.getElementById('add-user-modal');
         const nameInp = document.getElementById('newUserNameInput');
         const emailInp = document.getElementById('newUserEmailInput');
-        const passInp = document.getElementById('newUserPasswordInput');
         if (nameInp) nameInp.value = '';
         if (emailInp) emailInp.value = '';
-        if (passInp) passInp.value = '1234';
         if (modal) modal.classList.remove('hidden');
     }
 
@@ -1358,12 +1341,10 @@ class TournamentApp {
         const nameInp = document.getElementById('newUserNameInput');
         const emailInp = document.getElementById('newUserEmailInput');
         const roleSel = document.getElementById('newUserRoleSelect');
-        const passInp = document.getElementById('newUserPasswordInput');
 
         const name = nameInp ? nameInp.value.trim() : '';
         const email = emailInp ? emailInp.value.trim().toLowerCase() : '';
         const role = roleSel ? roleSel.value : 'viewer';
-        const password = passInp ? passInp.value.trim() : '1234';
 
         if (!name) {
             this.showAlert("אנא הזן שם עבור המשתמש.", "error");
@@ -1388,16 +1369,15 @@ class TournamentApp {
             name,
             email,
             role,
-            password: password || '1234',
             registeredAt: new Date().toLocaleDateString('he-IL'),
-            provider: 'email',
+            provider: 'google',
             isProtected: false
         });
         this.saveUnifiedUsers(users);
 
         this.closeAddUserModal();
         this.renderUsersManagement();
-        this.showAlert(`המשתמש ${name} (${email}) נוסף בהצלחה עם תפקיד ${role === 'admin' ? 'מנהל' : 'צופה'}! סיסמה ראשונית: ${password}`, "success");
+        this.showAlert(`המשתמש ${name} (${email}) נוסף בהצלחה עם תפקיד ${role === 'admin' ? 'מנהל' : 'צופה'}! הכניסה היא באמצעות חשבון Google של כתובת זו.`, "success");
     }
 
     async removeUser(emailToRemove) {
@@ -1445,70 +1425,6 @@ class TournamentApp {
         this.renderUsersManagement();
         this.showAlert(`המשתמש ${cleanEmail} הוסר בהצלחה מהמערכת וממסד הנתונים.`, "warning");
     }
-
-    openResetPasswordModal(userEmail) {
-        if (this.currentRole !== 'owner') {
-            this.showAlert("רק Owner רשאי לאפס סיסמאות!", "error");
-            return;
-        }
-
-        const modal = document.getElementById('reset-password-modal');
-        const disp = document.getElementById('resetPasswordUserEmailDisplay');
-        const target = document.getElementById('resetPasswordTargetEmail');
-        const newPassInp = document.getElementById('resetPasswordNewInput');
-
-        if (disp) disp.textContent = userEmail;
-        if (target) target.value = userEmail;
-        if (newPassInp) newPassInp.value = '1234';
-
-        if (modal) modal.classList.remove('hidden');
-    }
-
-    closeResetPasswordModal() {
-        const modal = document.getElementById('reset-password-modal');
-        if (modal) modal.classList.add('hidden');
-    }
-
-    submitResetPassword() {
-        if (this.currentRole !== 'owner') {
-            this.showAlert("רק Owner רשאי לאפס סיסמאות!", "error");
-            return;
-        }
-
-        const target = document.getElementById('resetPasswordTargetEmail');
-        const newPassInp = document.getElementById('resetPasswordNewInput');
-
-        const email = target ? target.value.trim().toLowerCase() : '';
-        const newPass = newPassInp ? newPassInp.value.trim() : '';
-
-        if (!newPass) {
-            this.showAlert("אנא הזן סיסמה חדשה.", "error");
-            return;
-        }
-
-        const users = this.getUnifiedUsers();
-        const user = users.find(u => u.email.toLowerCase() === email);
-        if (user) {
-            user.password = newPass;
-            this.saveUnifiedUsers(users);
-        } else {
-            users.push({
-                name: email.split('@')[0],
-                email,
-                role: 'viewer',
-                password: newPass,
-                registeredAt: new Date().toLocaleDateString('he-IL'),
-                provider: 'email',
-                isProtected: false
-            });
-            this.saveUnifiedUsers(users);
-        }
-
-        this.closeResetPasswordModal();
-        this.renderUsersManagement();
-        this.showAlert(`הסיסמה עבור ${email} אופסה בהצלחה ל: ${newPass}`, "success");
-    }
-
 
     /* ========================================================
        ניהול טורנירים וארכיון תוצאות עבר (Multi-Tournament System)
@@ -5347,84 +5263,6 @@ class TournamentApp {
         } else {
             this.showAlert("אנא סמן והעתק את הטקסט מתוך התיבה.", "warning");
         }
-    }
-
-    openProfileModal() {
-        if (!this.currentUser) return;
-        const modal = document.getElementById('profile-modal');
-        const emailDisp = document.getElementById('profileEmailDisplay');
-        const nameInput = document.getElementById('profileNameInput');
-        const curPass = document.getElementById('profileCurrentPassword');
-        const newPass = document.getElementById('profileNewPassword');
-
-        const user = this.getUserByEmail(this.currentUser.email);
-        if (emailDisp) emailDisp.value = this.currentUser.email || '';
-        // נלקח נקי לחלוטין מתוך user.name ללא שום מניפולציית מחרוזת פגומה!
-        if (nameInput) nameInput.value = user ? user.name : (this.currentUser.name || '');
-        if (curPass) curPass.value = '';
-        if (newPass) newPass.value = '';
-
-        if (modal) modal.classList.remove('hidden');
-    }
-
-    closeProfileModal() {
-        const modal = document.getElementById('profile-modal');
-        if (modal) modal.classList.add('hidden');
-    }
-
-    saveProfileChanges() {
-        if (!this.currentUser) return;
-        const nameInput = document.getElementById('profileNameInput');
-        const curPassInput = document.getElementById('profileCurrentPassword');
-        const newPassInput = document.getElementById('profileNewPassword');
-
-        const newName = nameInput ? nameInput.value.trim() : '';
-        const curPass = curPassInput ? curPassInput.value.trim() : '';
-        const newPass = newPassInput ? newPassInput.value.trim() : '';
-        const email = this.currentUser.email.toLowerCase();
-
-        const user = this.getUserByEmail(email);
-        if (!user) {
-            this.showAlert("שגיאה במציאת פרטי המשתמש.", "error");
-            return;
-        }
-
-        // אימות סיסמה נוכחית אם המשתמש מנסה לשנות סיסמה
-        if (newPass) {
-            if (newPass.length < 4) {
-                this.showAlert("סיסמה חדשה חייבת להכיל לפחות 4 תווים.", "error");
-                return;
-            }
-            if (curPass !== user.password) {
-                this.showAlert("הסיסמה הנוכחית שהזנת שגויה.", "error");
-                return;
-            }
-            user.password = newPass;
-        }
-
-        // עדכון שם
-        if (newName) {
-            user.name = newName;
-            this.currentUser.name = newName;
-            const role = this.currentUser.role;
-            if (role === 'owner') this.currentUser.displayName = `👑 בעלים (${newName})`;
-            else if (role === 'admin') this.currentUser.displayName = `⚡ מנהל (${newName})`;
-            else this.currentUser.displayName = `👁️ ${newName}`;
-
-            sessionStorage.setItem('tournament_current_user', JSON.stringify(this.currentUser));
-            this.updateUserSessionUI();
-        }
-
-        const users = this.getUnifiedUsers();
-        const idx = users.findIndex(u => u.email.toLowerCase() === email);
-        if (idx !== -1) {
-            users[idx] = user;
-            this.saveUnifiedUsers(users);
-        }
-
-        this.closeProfileModal();
-        this.renderUsersManagement();
-        this.showAlert("פרטי הפרופיל והסיסמה עודכנו בהצלחה!", "success");
     }
 
     /* ========================================================
