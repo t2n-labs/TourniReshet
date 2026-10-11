@@ -3518,11 +3518,6 @@ class TournamentApp {
             .replace(/"/g, '&quot;');
     }
 
-    // קביעת מועד אינה הזנת תוצאה, ולכן מותרת גם אחרי נעילת שלב הבתים - אך לא בטורניר סגור
-    canEditSchedule() {
-        return this.isManagerRole() && !this.isCurrentTournamentClosed();
-    }
-
     findAnyMatch(matchId) {
         return (this.matches || []).find(m => m.id === matchId) || this.findPlayoffMatch(matchId) || null;
     }
@@ -3544,14 +3539,13 @@ class TournamentApp {
         return parts.join(' • ');
     }
 
+    // כפתור קביעת המועד הוסר: מועד שכבר נקבע למשחק עדיין מוצג בכרטיס, ומשחק ללא מועד אינו מציג דבר
     renderMatchScheduleHtml(m) {
         const label = this.formatMatchSchedule(m);
-        const canEdit = this.canEditSchedule();
-        if (!label && !canEdit) return '';
+        if (!label) return '';
         return `
-            <div class="match-schedule-row ${label ? '' : 'is-unset'}">
-                <span class="match-schedule-text">${label || 'טרם נקבע מועד'}</span>
-                ${canEdit ? `<button type="button" class="btn-schedule-match" onclick="app.openScheduleModal('${m.id}')" title="קביעת תאריך, שעה ומיקום למשחק">${label ? '✏️ עדכן' : '🗓️ קבע מועד'}</button>` : ''}
+            <div class="match-schedule-row">
+                <span class="match-schedule-text">${label}</span>
             </div>
         `;
     }
@@ -3587,53 +3581,6 @@ class TournamentApp {
             </div>
         `;
         container.classList.remove('hidden');
-    }
-
-    openScheduleModal(matchId) {
-        if (!this.canEditSchedule()) {
-            this.showAlert("רק מנהל (Admin) או Owner רשאים לקבוע מועדי משחקים בטורניר פעיל.", "error");
-            return;
-        }
-        const match = this.findAnyMatch(matchId);
-        const modal = document.getElementById('match-schedule-modal');
-        if (!match || !modal) return;
-
-        const team1 = match.team1Name || match.team1?.teamName || 'ממתין לעולה';
-        const team2 = match.team2Name || match.team2?.teamName || 'ממתין לעולה';
-        const stage = match.groupNameHe ? `${match.groupNameHe} • מחזור ${match.round}` : match.roundName;
-
-        document.getElementById('scheduleMatchId').value = matchId;
-        document.getElementById('scheduleMatchTitle').textContent = `${stage}: ${team1} נגד ${team2}`;
-        document.getElementById('scheduleDateTimeInput').value = match.scheduledAt || '';
-        document.getElementById('scheduleLocationInput').value = match.location || '';
-        modal.classList.remove('hidden');
-    }
-
-    closeScheduleModal() {
-        const modal = document.getElementById('match-schedule-modal');
-        if (modal) modal.classList.add('hidden');
-    }
-
-    submitMatchSchedule(clear = false) {
-        if (!this.canEditSchedule()) {
-            this.showAlert("רק מנהל (Admin) או Owner רשאים לקבוע מועדי משחקים בטורניר פעיל.", "error");
-            return;
-        }
-        const match = this.findAnyMatch(document.getElementById('scheduleMatchId')?.value || '');
-        if (!match) return;
-
-        const dateTime = clear ? '' : (document.getElementById('scheduleDateTimeInput')?.value || '');
-        const location = clear ? '' : (document.getElementById('scheduleLocationInput')?.value || '').trim();
-
-        // null ולא undefined: Firestore דוחה שדות undefined
-        match.scheduledAt = dateTime || null;
-        match.location = location || null;
-
-        this.closeScheduleModal();
-        this.renderMatches();
-        if (!match.groupId) this.renderPlayoffBracket();
-        this.saveActiveTournamentData();
-        this.showAlert((dateTime || location) ? "מועד המשחק נשמר בהצלחה." : "מועד המשחק נוקה.", (dateTime || location) ? "success" : "warning");
     }
 
     // שיבוץ מחדש של הפלייאוף בונה עץ חדש; המועדים שכבר נקבעו למשחקים נשמרים לפי מזהה המשחק

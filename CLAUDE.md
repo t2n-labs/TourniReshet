@@ -120,7 +120,7 @@ When writing code or introducing features:
 
 ## 🗓️ Match Scheduling (v4.21, merged with the set-based scoring in v4.40)
 - Every match object (group matches in `matches[]` and playoff matches in `playoffMatches`) may carry two optional fields: `scheduledAt` (local `YYYY-MM-DDTHH:MM` string from a `datetime-local` input) and `location` (free text). Unset values are stored as `null`, never `undefined` (Firestore rejects `undefined`).
-- Managers (owner, developer, admin - `isManagerRole`) set them through the `#match-schedule-modal` (`openScheduleModal` / `submitMatchSchedule`). Scheduling stays allowed after the group stage is locked, but not in a closed tournament.
+- The schedule button and its dialog (`#match-schedule-modal`, `openScheduleModal` / `submitMatchSchedule`) were removed in v4.50, so no new dates can be set from the app. Dates already stored on a match are still shown on its card, and `renderUpcomingMatches` still lists them; a match without a date shows nothing.
 - `renderUpcomingMatches` shows the next 3 scheduled, unplayed group matches above the group-stage toolbar, following the current house/team filters.
 - `seedPlayoffs` rebuilds the bracket; `copyPlayoffSchedule` carries schedules over by match id. Regenerating the group schedule (`generateTournamentGroups`) discards group match schedules along with scores.
 - The CSV export includes `מועד` and `מיקום` columns.
