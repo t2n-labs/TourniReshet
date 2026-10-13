@@ -129,6 +129,12 @@ When writing code or introducing features:
 - Two sets: 2:0 wins. At 1:1 the winner is the team with more total points over both sets (`summarizeSets` → `decidedByPoints`). Equal totals (`pointsTie`) leave the game undecided - there are no ties - and the card shows a note asking for a correction.
 - `score1`/`score2` hold sets won, so a points-decided game is stored as 1:1 with a `winner`; `isTiedScore` returns false for it.
 
+## 📜 Audit Trail & Guest Statistics (v4.55)
+- Every manager action (owner, developer, admin) is appended to the Firestore collection `audit_log` by `logAudit(action, details, tourney?)`: who, when (`ts`), role, tournament, and a Hebrew description. Add a `logAudit` call to any new action that changes data, and a label in `auditActionLabel`.
+- Score edits are logged once per game, a few seconds after the last keystroke (`queueScoreAudit`), not per digit.
+- Viewers are not audited. `logGuestVisit` appends one document to `guest_visits` per viewer entry (tournament, time, random per-browser id) for the statistics tiles.
+- Both views live in the owner tab and are loaded only when `currentRole === "owner"`. Real protection needs the rules in `firestore.rules` to be published in the Firebase console - the client check alone does not stop someone reading the collection directly.
+
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
 - Merge `tomer` into `main` (production) only after the owner approves the change on staging.

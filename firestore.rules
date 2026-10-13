@@ -1,0 +1,44 @@
+// Recommended Firestore security rules for TourniReshet.
+// NOT applied automatically: paste into Firebase Console -> Firestore Database -> Rules -> Publish.
+// Test on the staging site right after publishing (manager sign-in, entering a score, viewer entry).
+//
+// Why: with open rules anyone on the internet can read (and write) every collection,
+// including the audit trail. These rules make the audit trail and the guest statistics
+// readable by the owner only, and append-only for everyone else.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner() {
+      return signedIn() && request.auth.token.email == 'noamsee@gmail.com';
+    }
+
+    // Tournaments: everyone can view; only signed-in managers change them.
+    match /tournaments/{id} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Users list: the app reads it before sign-in to resolve roles.
+    match /users/{id} {
+      allow read: if true;
+      allow write: if signedIn();
+    }
+
+    // Audit trail: signed-in managers can only add entries; only the owner can read; nobody can edit or delete.
+    match /audit_log/{id} {
+      allow create: if signedIn();
+      allow read: if isOwner();
+      allow update, delete: if false;
+    }
+
+    // Guest statistics: any visitor adds a visit; only the owner can read; nobody can edit or delete.
+    match /guest_visits/{id} {
+      allow create: if true;
+      allow read: if isOwner();
+      allow update, delete: if false;
+    }
+  }
+}

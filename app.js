@@ -813,6 +813,8 @@ class TournamentApp {
             this.switchTournament(selectedTourneyId, false);
         }
 
+        this.logGuestVisit(selectedTourneyId, selectedGroup, selectedTeam);
+
         // חיבור ישיר כאורח ללא הצגת מודאלים נוספים
         this.authenticateUser('guest@tournament.local', true, 'אורח', 'guest');
     }
@@ -903,10 +905,13 @@ class TournamentApp {
         if (showNotification) {
             const providerText = (provider === 'google') ? 'באמצעות Google / Gmail' : '';
             if (role === 'owner') {
+                this.logAudit('login', 'כניסה למערכת');
                 this.showAlert(`ברוך הבא! נכנסת כמנהל על (Owner - ${cleanEmail}) ${providerText} עם גישה מלאה.`, "success");
             } else if (role === 'developer') {
+                this.logAudit('login', 'כניסה למערכת');
                 this.showAlert(`שלום ${cleanName}! נכנסת כמפתח (Developer) ${providerText}.`, "success");
             } else if (role === 'admin') {
+                this.logAudit('login', 'כניסה למערכת');
                 this.showAlert(`שלום ${cleanName}! נכנסת כמנהל מורשה (Admin) ${providerText}.`, "success");
             } else {
                 this.showAlert(`שלום ${cleanName}! נכנסת למערכת הטורניר ${providerText}.`, "info");
@@ -985,6 +990,7 @@ class TournamentApp {
         this.flushAllScoreDrafts();
         this.finishPlayoffEditing();
         this.closeAdminTournamentChooser();
+        this.logAudit('logout', 'יציאה מהמערכת');
         const loggedOutEmail = this.currentUser ? this.currentUser.email : '';
         this.currentUser = null;
         sessionStorage.removeItem('tournament_current_user');
@@ -1094,7 +1100,7 @@ class TournamentApp {
         // אם הטורניר סגור - נעול לחלוטין לשינויים לכולם (כולל Admin ו-Owner)!
         const isReadOnly = (newRole === 'viewer') || isClosed;
 
-        const allInputs = document.querySelectorAll('#screen-main input:not(#newAdminEmailInput):not(#newTournamentNameInput):not(#wizardTourneyName)');
+        const allInputs = document.querySelectorAll('#screen-main input:not(#auditSearchInput):not(#newAdminEmailInput):not(#newTournamentNameInput):not(#wizardTourneyName)');
         allInputs.forEach(input => {
             input.disabled = isReadOnly;
         });
@@ -1156,6 +1162,286 @@ class TournamentApp {
         }
         this.updateGuestTournamentBadge();
         this.populateTournamentSelectors();
+    }
+
+    /* ========================================================
+       יומן פעולות (Audit Trail) וסטטיסטיקת צופים - מוצגים לבעלים בלבד
+       ======================================================== */
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    // רשומה נשמרת באוסף בענן; בלי חיבור לענן (מצב לא מקוון) היא נשמרת מקומית בלבד
+    storeLogEntry(collection, entry) {
+        if (this.db) {
+            try {
+                this.db.collection(collection).add(entry).catch(e => console.warn(`[Firestore] Failed to write to ${collection}:`, e));
+            } catch (e) {
+                console.warn(`[Firestore] Error writing to ${collection}:`, e);
+            }
+            return;
+        }
+        try {
+            const key = `tournament_local_${collection}`;
+            const list = JSON.parse(localStorage.getItem(key) || '[]');
+            list.push(entry);
+            localStorage.setItem(key, JSON.stringify(list.slice(-1000)));
+        } catch (e) {}
+    }
+
+    // הרשומות האחרונות, מהחדשה לישנה
+    async fetchLogEntries(collection, limit) {
+        if (this.db) {
+            const snapshot = await this.db.collection(collection).orderBy('ts', 'desc').limit(limit).get();
+            return snapshot.docs.map(doc => doc.data());
+        }
+        let list = [];
+        try { list = JSON.parse(localStorage.getItem(`tournament_local_${collection}`) || '[]'); } catch (e) {}
+        return list.slice().reverse().slice(0, limit);
+    }
+
+    // כל פעולה של מנהל (בעלים, מפתח או מנהל) נרשמת עם זהות המבצע, הזמן והטורניר שבו בוצעה.
+    // צופים אינם נרשמים ביומן; עבורם נשמרת רק סטטיסטיקת כניסות (ראו logGuestVisit).
+    logAudit(action, details = '', tourney = null) {
+        const user = this.currentUser;
+        if (!user || !this.isManagerRole(user.role)) return;
+        // תוצאות שעדיין ממתינות לרישום נרשמות קודם, כדי שהיומן יישאר בסדר כרונולוגי
+        if (action !== 'score') this.flushAllScoreAudits();
+
+        const noTournament = ['login', 'logout', 'user_add', 'user_edit', 'user_remove'].includes(action);
+        const t = noTournament ? null : (tourney || this.tournaments.find(x => x.id === this.activeTournamentId) || null);
+        this.storeLogEntry('audit_log', {
+            ts: Date.now(),
+            email: user.email || '',
+            name: user.name || '',
+            role: user.role || '',
+            action,
+            details: String(details || ''),
+            tournamentId: t ? (t.id || '') : '',
+            tournamentName: t ? (t.name || '') : '',
+            site: location.host + location.pathname
+        });
+    }
+
+    describeMatchResult(m) {
+        const team1 = m.team1Name || m.team1?.teamName || '?';
+        const team2 = m.team2Name || m.team2?.teamName || '?';
+        const houseNames = { 'Group A': "בית א'", 'Group B': "בית ב'", 'Group C': "בית ג'", 'Group D': "בית ד'", 'Group E': "בית ה'", 'Group F': "בית ו'" };
+        const stage = m.groupNameHe
+            ? `${m.groupNameHe}, משחק #${m.matchNumber}`
+            : `פלייאוף${m.groupId ? ` ${houseNames[m.groupId] || m.groupId}` : ''}, ${m.roundName || m.id}`;
+
+        let result = '';
+        if (this.isMultiSet() && Array.isArray(m.sets)) {
+            result = m.sets
+                .filter(set => set.s1 !== null && set.s1 !== undefined && set.s2 !== null && set.s2 !== undefined)
+                .map(set => `${set.s1}:${set.s2}`).join(', ');
+        } else if (m.score1 !== null && m.score1 !== undefined && m.score2 !== null && m.score2 !== undefined) {
+            result = `${m.score1}:${m.score2}`;
+        } else if ((m.score1 !== null && m.score1 !== undefined) || (m.score2 !== null && m.score2 !== undefined)) {
+            result = `${m.score1 ?? '-'}:${m.score2 ?? '-'}`;
+        }
+        if (!result) return `מחיקת תוצאה (${stage}): ${team1} נגד ${team2}`;
+        const winner = m.winner === 'team1' ? team1 : (m.winner === 'team2' ? team2 : null);
+        return `הזנת תוצאה (${stage}): ${team1} נגד ${team2} - ${result}${winner ? `, מנצחת: ${winner}` : ', ללא הכרעה'}`;
+    }
+
+    // תוצאה מוקלדת ספרה אחר ספרה, ולכן היא נרשמת ביומן פעם אחת - כמה שניות אחרי ההקלדה האחרונה במשחק
+    queueScoreAudit(match) {
+        if (!match || !this.currentUser || !this.isManagerRole()) return;
+        if (!this.pendingScoreAudits) {
+            this.pendingScoreAudits = {};
+            window.addEventListener('pagehide', () => this.flushAllScoreAudits());
+        }
+        const key = `${this.activeTournamentId}|${match.id}`;
+        if (this.pendingScoreAudits[key]) clearTimeout(this.pendingScoreAudits[key].timer);
+        this.pendingScoreAudits[key] = {
+            // התיאור נקבע ברגע ההקלדה, כדי ששינוי מאוחר יותר במשחק (למשל כלי בדיקה) לא ישנה את מה שנרשם
+            details: this.describeMatchResult(match),
+            tourney: this.tournaments.find(t => t.id === this.activeTournamentId) || null,
+            timer: setTimeout(() => this.flushScoreAudit(key), 4000)
+        };
+    }
+
+    flushScoreAudit(key) {
+        const pending = this.pendingScoreAudits && this.pendingScoreAudits[key];
+        if (!pending) return;
+        clearTimeout(pending.timer);
+        delete this.pendingScoreAudits[key];
+        this.logAudit('score', pending.details, pending.tourney);
+    }
+
+    flushAllScoreAudits() {
+        Object.keys(this.pendingScoreAudits || {}).forEach(key => this.flushScoreAudit(key));
+    }
+
+    // כניסת צופה: נשמרים רק הטורניר, הזמן ומזהה אקראי של הדפדפן (לספירת צופים ייחודיים) - בלי פרטים מזהים
+    logGuestVisit(tourneyId, groupKey, teamName) {
+        let visitorId = '';
+        try {
+            visitorId = localStorage.getItem('tournament_visitor_id') || '';
+            if (!visitorId) {
+                visitorId = `v_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+                localStorage.setItem('tournament_visitor_id', visitorId);
+            }
+        } catch (e) {}
+        const tourney = this.tournaments.find(t => t.id === tourneyId) || null;
+        this.storeLogEntry('guest_visits', {
+            ts: Date.now(),
+            visitorId,
+            tournamentId: tourneyId || '',
+            tournamentName: tourney ? (tourney.name || '') : '',
+            groupKey: groupKey || 'all',
+            teamName: teamName || '',
+            site: location.host + location.pathname
+        });
+    }
+
+    auditActionLabel(action) {
+        const labels = {
+            login: 'כניסה', logout: 'יציאה',
+            tournament_create: 'הקמת טורניר', tournament_edit: 'עדכון טורניר', tournament_rename: 'שם / תאריך טורניר',
+            tournament_delete: 'מחיקת טורניר', tournament_archive: 'העברה לארכיון', tournament_reopen: 'פתיחה מחדש',
+            tournament_finalize: 'סיום טורניר', board_create: 'יצירת לוח', stage_lock: 'נעילת שלב הבתים',
+            team_rename: 'שינוי שם קבוצה', team_name: 'הזנת שם קבוצה', score: 'תוצאה', playoff_reset: 'איפוס פלייאוף', hard_reset: 'איפוס מלא',
+            user_add: 'הוספת משתמש', user_edit: 'עדכון משתמש', user_remove: 'הסרת משתמש',
+            debug_tool: 'כלי בדיקה', export: 'ייצוא'
+        };
+        return labels[action] || action;
+    }
+
+    formatLogTime(ts) {
+        const d = new Date(ts);
+        return isNaN(d.getTime()) ? '-' : d.toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'medium' });
+    }
+
+    async loadAuditTrail(more = false) {
+        const container = document.getElementById('auditTrailContainer');
+        if (!container || this.currentRole !== 'owner') return;
+        this.auditLimit = more ? (this.auditLimit || 300) + 300 : 300;
+        this.flushAllScoreAudits();
+        if (!this.auditEntries) container.innerHTML = '<p class="placeholder-text">טוען את יומן הפעולות...</p>';
+        try {
+            this.auditEntries = await this.fetchLogEntries('audit_log', this.auditLimit);
+            this.renderAuditTrail();
+        } catch (e) {
+            console.warn("[Audit] Failed to load audit trail:", e);
+            container.innerHTML = `<p class="placeholder-text">לא ניתן לטעון את יומן הפעולות: ${this.escapeHtml(e.message || e)}</p>`;
+        }
+    }
+
+    renderAuditTrail() {
+        const container = document.getElementById('auditTrailContainer');
+        if (!container || this.currentRole !== 'owner') return;
+        const entries = this.auditEntries || [];
+
+        const userSelect = document.getElementById('auditUserFilter');
+        const actionSelect = document.getElementById('auditActionFilter');
+        const fillSelect = (select, values, allLabel, labelOf) => {
+            if (!select) return 'all';
+            const current = select.value || 'all';
+            select.innerHTML = `<option value="all">${allLabel}</option>` +
+                values.map(v => `<option value="${this.escapeHtml(v)}">${this.escapeHtml(labelOf(v))}</option>`).join('');
+            select.value = values.includes(current) ? current : 'all';
+            return select.value;
+        };
+        const userFilter = fillSelect(userSelect, [...new Set(entries.map(e => e.email).filter(Boolean))].sort(), 'כל המשתמשים', v => v);
+        const actionFilter = fillSelect(actionSelect, [...new Set(entries.map(e => e.action).filter(Boolean))].sort(), 'כל הפעולות', v => this.auditActionLabel(v));
+        const search = (document.getElementById('auditSearchInput')?.value || '').trim().toLowerCase();
+
+        const filtered = entries.filter(e =>
+            (userFilter === 'all' || e.email === userFilter) &&
+            (actionFilter === 'all' || e.action === actionFilter) &&
+            (!search || `${e.details} ${e.tournamentName} ${e.name} ${e.email}`.toLowerCase().includes(search)));
+
+        const roleLabels = { owner: '👑 בעלים', developer: '🛠️ מפתח', admin: '⚡ מנהל' };
+        const countEl = document.getElementById('auditCount');
+        if (countEl) countEl.textContent = `מוצגות ${filtered.length} מתוך ${entries.length} הפעולות האחרונות`;
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<p class="placeholder-text">אין פעולות להצגה.</p>';
+        } else {
+            container.innerHTML = `
+                <div class="audit-table-wrap">
+                    <table class="admins-table audit-table">
+                        <thead>
+                            <tr><th>זמן</th><th>משתמש</th><th>תפקיד</th><th>פעולה</th><th>טורניר</th><th>פרטים</th></tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.map(e => `
+                                <tr>
+                                    <td class="audit-time"><bdi>${this.formatLogTime(e.ts)}</bdi></td>
+                                    <td><strong>${this.escapeHtml(e.name || '-')}</strong><br><span class="audit-email">${this.escapeHtml(e.email || '')}</span></td>
+                                    <td>${roleLabels[e.role] || this.escapeHtml(e.role || '-')}</td>
+                                    <td><span class="audit-action">${this.escapeHtml(this.auditActionLabel(e.action))}</span></td>
+                                    <td>${this.escapeHtml(e.tournamentName || '-')}</td>
+                                    <td class="audit-details">${this.escapeHtml(e.details || '')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        const moreBtn = document.getElementById('auditLoadMoreBtn');
+        if (moreBtn) moreBtn.classList.toggle('hidden', entries.length < (this.auditLimit || 300));
+    }
+
+    async loadGuestStats() {
+        const container = document.getElementById('guestStatsContainer');
+        if (!container || this.currentRole !== 'owner') return;
+        try {
+            const visits = await this.fetchLogEntries('guest_visits', 5000);
+            const uniqueCount = (list) => new Set(list.map(v => v.visitorId || `anon_${v.ts}`)).size;
+            const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+            const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+            const today = visits.filter(v => v.ts >= startOfToday.getTime());
+            const week = visits.filter(v => v.ts >= weekAgo);
+
+            const byTournament = {};
+            visits.forEach(v => {
+                const key = v.tournamentId || v.tournamentName || '-';
+                if (!byTournament[key]) byTournament[key] = { name: v.tournamentName || key, list: [] };
+                byTournament[key].list.push(v);
+            });
+            const rows = Object.values(byTournament).sort((a, b) => b.list.length - a.list.length);
+
+            const tile = (value, label) => `<div class="stat-tile"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+            container.innerHTML = `
+                <div class="stat-tiles">
+                    ${tile(visits.length, 'כניסות צופים בסך הכל')}
+                    ${tile(uniqueCount(visits), 'צופים ייחודיים (לפי דפדפן)')}
+                    ${tile(week.length, 'כניסות ב-7 הימים האחרונים')}
+                    ${tile(today.length, 'כניסות היום')}
+                </div>
+                ${rows.length === 0 ? '<p class="placeholder-text">עדיין לא נרשמו כניסות צופים.</p>' : `
+                    <div class="audit-table-wrap">
+                        <table class="admins-table">
+                            <thead><tr><th>טורניר</th><th>כניסות</th><th>צופים ייחודיים</th><th>כניסה אחרונה</th></tr></thead>
+                            <tbody>
+                                ${rows.map(r => `
+                                    <tr>
+                                        <td style="font-weight:700;">${this.escapeHtml(r.name)}</td>
+                                        <td>${r.list.length}</td>
+                                        <td>${uniqueCount(r.list)}</td>
+                                        <td><bdi>${this.formatLogTime(Math.max(...r.list.map(v => v.ts)))}</bdi></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `}
+            `;
+        } catch (e) {
+            console.warn("[Audit] Failed to load guest statistics:", e);
+            container.innerHTML = `<p class="placeholder-text">לא ניתן לטעון את סטטיסטיקת הצופים: ${this.escapeHtml(e.message || e)}</p>`;
+        }
     }
 
     getAllUsers() {
@@ -1311,6 +1597,7 @@ class TournamentApp {
 
         this.closeEditUserModal();
         this.renderUsersManagement();
+        this.logAudit('user_edit', `עדכון משתמש: ${name} (${email}), תפקיד: ${role}`);
         this.showAlert(`פרטי המשתמש ${name} (${email}) נשמרו בהצלחה!`, "success");
     }
 
@@ -1377,6 +1664,7 @@ class TournamentApp {
 
         this.closeAddUserModal();
         this.renderUsersManagement();
+        this.logAudit('user_add', `הוספת משתמש: ${name} (${email}), תפקיד: ${role}`);
         this.showAlert(`המשתמש ${name} (${email}) נוסף בהצלחה עם תפקיד ${role === 'admin' ? 'מנהל' : 'צופה'}! הכניסה היא באמצעות חשבון Google של כתובת זו.`, "success");
     }
 
@@ -1423,6 +1711,7 @@ class TournamentApp {
         }
 
         this.renderUsersManagement();
+        this.logAudit('user_remove', `הסרת משתמש: ${cleanEmail}`);
         this.showAlert(`המשתמש ${cleanEmail} הוסר בהצלחה מהמערכת וממסד הנתונים.`, "warning");
     }
 
@@ -2349,6 +2638,7 @@ class TournamentApp {
             this.populateTournamentSelectors();
             this.renderOwnerTournamentsList();
             this.updateGuestTournamentBadge();
+            this.logAudit('tournament_edit', `עדכון פרטי טורניר: ${tourneyName}`);
             this.showAlert(`פרטי הטורניר '${tourneyName}' עודכנו בהצלחה!`, "success");
             return;
         }
@@ -2501,6 +2791,7 @@ class TournamentApp {
         // לאחר הקמת טורניר חדש עוברים תמיד להגדרות הטורניר (הזנת שמות הקבוצות)
         this.switchTab('setup');
 
+        this.logAudit('tournament_create', `הקמת טורניר: ${this.formatLabel(format)}, ${teams.length} קבוצות, ${tournamentObj.setsPerMatch} מערכות למשחק`);
         this.showAlert(`הטורניר '${tourneyName}' הוקם בהצלחה עם ${teams.length} קבוצות!`, "success");
     }
 
@@ -2747,11 +3038,13 @@ class TournamentApp {
             // פתיחת טורניר מחדש
             t.isArchived = false;
             t.name = baseName;
+            this.logAudit('tournament_reopen', 'פתיחת טורניר מחדש (יציאה מהארכיון)', t);
             this.showAlert(`הטורניר "${t.name}" נפתח מחדש והוגדר כפעיל.`, "success");
         } else {
             // סגירת טורניר
             t.isArchived = true;
             t.name = baseName;
+            this.logAudit('tournament_archive', 'העברת טורניר לארכיון', t);
             this.showAlert(`הטורניר "${t.name}" נסגר בהצלחה והועבר לארכיון.`, "warning");
         }
 
@@ -2837,6 +3130,7 @@ class TournamentApp {
         this.populateTournamentSelectors();
         this.renderOwnerTournamentsList();
         this.updateGuestTournamentBadge();
+        this.logAudit('tournament_finalize', 'סיום טורניר - התוצאות ננעלו', tourney);
         this.showAlert(`הטורניר "${tourney.name}" הסתיים. התוצאות סופיות ונעולות.`, "success");
     }
 
@@ -2953,6 +3247,7 @@ class TournamentApp {
         this.populateTournamentSelectors();
         this.renderOwnerTournamentsList();
         this.updateCloseButtonUI();
+        this.logAudit('tournament_delete', 'מחיקת טורניר לצמיתות', { id: tourneyId, name: deletedName });
         this.showAlert(`הטורניר "${deletedName}" נמחק בהצלחה לצמיתות.`, "warning");
     }
 
@@ -3080,6 +3375,8 @@ class TournamentApp {
         if (tabId === 'users') {
             this.renderUsersManagement();
             this.renderOwnerTournamentsList();
+            this.loadAuditTrail();
+            this.loadGuestStats();
         }
     }
 
@@ -3176,6 +3473,7 @@ class TournamentApp {
         } else {
             this.syncTeamNamesToMatches();
         }
+        this.logAudit('team_name', `הזנת שם לקבוצה ${index + 1}: "${this.teams[index]}"`);
         this.saveActiveTournamentData();
     }
 
@@ -3198,6 +3496,7 @@ class TournamentApp {
             this.syncTeamNamesToMatches();
         }
         this.saveActiveTournamentData();
+        this.logAudit('debug_tool', 'כלי בדיקה: מילוי שמות קבוצות לדוגמה');
         this.showAlert("שמות הקבוצות שוחזרו בהצלחה.", "success");
     }
 
@@ -3418,6 +3717,7 @@ class TournamentApp {
         }
         if (document.querySelector('#playoff-bracket-container .bracket-tree, #playoff-bracket-container .internal-playoff')) this.renderPlayoffBracket();
         this.saveActiveTournamentData();
+        this.logAudit('team_rename', `שינוי שם קבוצה: "${oldName}" ← "${trimmed}"`);
         this.showAlert(`שם הקבוצה שונה מ"${oldName}" ל"${trimmed}".`, "success");
     }
 
@@ -3497,6 +3797,7 @@ class TournamentApp {
         this.populateTournamentSelectors();
         this.renderOwnerTournamentsList();
         this.updateGuestTournamentBadge();
+        this.logAudit('tournament_rename', `שינוי שם / תאריך הטורניר ל-"${tourney.name}"`, tourney);
         this.showAlert(`שם הטורניר עודכן ל"${tourney.name}".`, "success");
     }
 
@@ -3546,6 +3847,7 @@ class TournamentApp {
             this.renderPlayoffBracket();
             if (shouldSwitchTab) {
                 this.switchTab('playoffs');
+                this.logAudit('board_create', 'יצירת עץ הפלייאוף');
                 this.showAlert("עץ הפלייאוף נוצר בהצלחה!", "success");
             }
             return;
@@ -3605,6 +3907,7 @@ class TournamentApp {
 
         if (shouldSwitchTab) {
             this.switchTab('group-stage');
+            this.logAudit('board_create', `יצירת לוח המשחקים (${this.matches.length} משחקים)`);
             this.showAlert(`לוח המשחקים נוצר בהצלחה! ${this.matches.length} משחקים חולקו ל-${numGroups} בתים.`, "success");
         }
     }
@@ -3755,6 +4058,7 @@ class TournamentApp {
         this.applySetsToMatch(match);
         this.renderMatches();
         this.calculateStandings();
+        this.queueScoreAudit(match);
         this.saveActiveTournamentData();
     }
 
@@ -4007,6 +4311,7 @@ class TournamentApp {
             match.winner = null;
             this.updateMatchRowWinners(match);
             this.calculateStandings();
+            this.queueScoreAudit(match);
             this.saveActiveTournamentData();
             return;
         }
@@ -4039,6 +4344,7 @@ class TournamentApp {
 
         this.updateMatchRowWinners(match);
         this.calculateStandings();
+        this.queueScoreAudit(match);
         this.saveActiveTournamentData();
     }
 
@@ -4471,6 +4777,7 @@ class TournamentApp {
             this.renderPlayoffBracket();
             this.saveActiveTournamentData();
             this.switchTab('playoffs');
+            this.logAudit('stage_lock', `נעילת שלב הבתים ושיבוץ ${placement.length} משחקי מיקום`);
             this.showAlert(`שלב הבתים ננעל בהצלחה! שובצו ${placement.length} משחקי מיקום בפלייאוף הפנימי.`, "success");
             return;
         }
@@ -4507,6 +4814,7 @@ class TournamentApp {
         this.renderPlayoffBracket();
         this.saveActiveTournamentData();
         this.switchTab('playoffs');
+        this.logAudit('stage_lock', `נעילת שלב הבתים ושיבוץ ${playoffSize} קבוצות לעץ הפלייאוף`);
         this.showAlert(`שלב הבתים ננעל בהצלחה! ${playoffSize} הקבוצות המובילות שובצו לעץ הפלייאוף.`, "success");
     }
 
@@ -4995,6 +5303,7 @@ class TournamentApp {
         }
 
         this.renderPlayoffBracketWithFocus(inputElement?.id);
+        this.queueScoreAudit(match);
         this.saveActiveTournamentData();
     }
 
@@ -5032,6 +5341,7 @@ class TournamentApp {
             match.winner = null;
             this.propagatePlayoffWinner(match, null);
             this.renderPlayoffBracketWithFocus(inputElement?.id);
+            this.queueScoreAudit(match);
             this.saveActiveTournamentData();
             return;
         }
@@ -5063,6 +5373,7 @@ class TournamentApp {
         }
 
         this.renderPlayoffBracketWithFocus(inputElement?.id);
+        this.queueScoreAudit(match);
         this.saveActiveTournamentData();
     }
 
@@ -5160,6 +5471,7 @@ class TournamentApp {
         this.renderMatches();
         this.calculateStandings();
         this.saveActiveTournamentData();
+        this.logAudit('debug_tool', 'כלי בדיקה: מילוי תוצאות לדוגמה לכל משחקי הבתים');
         this.showAlert(`הוזנו תוצאות לדוגמה לכל ${this.matches.length} המשחקים!`, "success");
     }
 
@@ -5185,6 +5497,7 @@ class TournamentApp {
         this.renderMatches();
         this.calculateStandings();
         this.saveActiveTournamentData();
+        this.logAudit('debug_tool', 'כלי בדיקה: איפוס כל תוצאות שלב הבתים');
         this.showAlert("כל תוצאות המשחקים אופסו בהצלחה.", "warning");
     }
 
@@ -5220,6 +5533,7 @@ class TournamentApp {
 
         this.renderPlayoffBracket();
         this.saveActiveTournamentData();
+        this.logAudit('debug_tool', 'כלי בדיקה: סימולציית משחקי הפלייאוף');
         this.showAlert(this.isInternalPlayoff() ? "כל משחקי המיקום בפלייאוף הפנימי סומלצו!" : "כל משחקי הפלייאוף סומלצו עד להכתרת האלופה!", "success");
     }
 
@@ -5231,6 +5545,7 @@ class TournamentApp {
         }
 
         if (!this.playoffSeeds || this.playoffSeeds.length === 0) return;
+        this.logAudit('playoff_reset', 'איפוס תוצאות הפלייאוף ושיבוץ מחדש');
         this.seedPlayoffs();
     }
 
@@ -5255,6 +5570,7 @@ class TournamentApp {
         }
         this.saveActiveTournamentData();
         this.switchTab('setup');
+        this.logAudit('hard_reset', 'איפוס מלא של הטורניר (Hard Reset)');
         this.showAlert("הטורניר אופס לחלוטין למצב התחלתי!", "warning");
     }
 
@@ -5417,6 +5733,7 @@ class TournamentApp {
             downloadLink.click();
             document.body.removeChild(downloadLink);
             URL.revokeObjectURL(url);
+            this.logAudit('export', 'ייצוא נתוני הטורניר ל-Excel (CSV)');
             this.showAlert("קובץ CSV הורד בהצלחה! ניתן לפתוח ישירות ב-Excel או Google Sheets.", "success");
         } catch (err) {
             console.error("Failed to download CSV:", err);

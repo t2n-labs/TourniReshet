@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.54">
+    <link rel="stylesheet" href="./style.css?v=4.55">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -419,7 +419,50 @@
 
                     <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
 
-                    <!-- חלק 3: פעולות קריטיות -->
+                    <!-- חלק 3: יומן פעולות (Audit Trail) - לבעלים בלבד -->
+                    <div class="audit-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                            <div>
+                                <h3 style="margin:0;">📜 יומן פעולות (Audit Trail)</h3>
+                                <p style="font-size:0.9rem; color:#6b5b45; margin:4px 0 0 0;">
+                                    כל פעולה של בעלים, מפתחים ומנהלים נרשמת כאן: מי ביצע, מתי, באיזה טורניר ומה בדיוק נעשה. היומן מוצג לבעלים בלבד.
+                                </p>
+                            </div>
+                            <button type="button" class="btn-secondary btn-sm" onclick="app.loadAuditTrail()">🔄 רענן</button>
+                        </div>
+                        <div class="audit-filters">
+                            <select id="auditUserFilter" class="filter-select" onchange="app.renderAuditTrail()" aria-label="סינון לפי משתמש"></select>
+                            <select id="auditActionFilter" class="filter-select" onchange="app.renderAuditTrail()" aria-label="סינון לפי סוג פעולה"></select>
+                            <input type="search" id="auditSearchInput" class="filter-select audit-search" placeholder="חיפוש בפרטים, בטורניר או במשתמש" oninput="app.renderAuditTrail()" aria-label="חיפוש ביומן">
+                            <span id="auditCount" class="audit-count"></span>
+                        </div>
+                        <div id="auditTrailContainer">
+                            <!-- ייווצר דינמית ע"י ה-JS -->
+                        </div>
+                        <button type="button" id="auditLoadMoreBtn" class="btn-secondary btn-sm hidden" style="margin-top:10px;" onclick="app.loadAuditTrail(true)">⬇️ טען פעולות ישנות יותר</button>
+                    </div>
+
+                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
+
+                    <!-- חלק 4: סטטיסטיקת צופים - לבעלים בלבד -->
+                    <div class="audit-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                            <div>
+                                <h3 style="margin:0;">👁️ סטטיסטיקת צופים</h3>
+                                <p style="font-size:0.9rem; color:#6b5b45; margin:4px 0 0 0;">
+                                    כמה צופים נכנסו ולאיזה טורניר. לצופים לא נשמר יומן פעולות ולא נשמרים פרטים מזהים - רק ספירת כניסות.
+                                </p>
+                            </div>
+                            <button type="button" class="btn-secondary btn-sm" onclick="app.loadGuestStats()">🔄 רענן</button>
+                        </div>
+                        <div id="guestStatsContainer" style="margin-top:12px;">
+                            <!-- ייווצר דינמית ע"י ה-JS -->
+                        </div>
+                    </div>
+
+                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
+
+                    <!-- חלק 5: פעולות קריטיות -->
                     <div>
                         <h3 style="color:#dc2626;">⚠️ פעולות קריטיות</h3>
                         <p style="font-size:0.9rem; color:#6b5b45;">איפוס כולל ימחק את תוצאות המשחקים ויאתחל את הטורניר למצב התחלתי.</p>
@@ -759,7 +802,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.54"></script>
+    <script src="./app.js?v=4.55"></script>
 </body>
 </html>
 

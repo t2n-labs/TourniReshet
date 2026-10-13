@@ -3357,3 +3357,106 @@ body.no-tournament #headerFinalizeTournamentBtn {
     color: #b45309;
     background: #fffbeb;
 }
+
+/* ==========================================================================
+   יומן פעולות וסטטיסטיקת צופים (פאנל הבעלים)
+   ========================================================================== */
+.audit-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0;
+}
+
+.audit-filters .filter-select {
+    min-width: 150px;
+}
+
+.audit-filters .audit-search {
+    flex: 1;
+    min-width: 200px;
+}
+
+.audit-count {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.audit-table-wrap {
+    overflow: auto;
+    max-height: 520px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+.audit-table-wrap .admins-table {
+    margin: 0;
+}
+
+.audit-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.audit-table td {
+    vertical-align: top;
+    font-size: 0.85rem;
+}
+
+.audit-time {
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.audit-email {
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    direction: ltr;
+    display: inline-block;
+}
+
+.audit-action {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    background: #f4ebdc;
+    border: 1px solid var(--border-color);
+    font-weight: 700;
+    font-size: 0.76rem;
+    white-space: nowrap;
+}
+
+.audit-details {
+    min-width: 240px;
+    line-height: 1.4;
+}
+
+.stat-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.stat-tile {
+    background: #fbf5ea;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 1.7rem;
+    font-weight: 800;
+    color: var(--text-main);
+    line-height: 1.1;
+}
+
+.stat-label {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
