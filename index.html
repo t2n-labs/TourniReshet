@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.57">
+    <link rel="stylesheet" href="./style.css?v=4.58">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -436,13 +436,37 @@
                         <div class="audit-filters">
                             <select id="auditUserFilter" class="filter-select" onchange="app.renderAuditTrail()" aria-label="סינון לפי משתמש"></select>
                             <select id="auditActionFilter" class="filter-select" onchange="app.renderAuditTrail()" aria-label="סינון לפי סוג פעולה"></select>
-                            <input type="search" id="auditSearchInput" class="filter-select audit-search" placeholder="חיפוש בפרטים, בטורניר או במשתמש" oninput="app.renderAuditTrail()" aria-label="חיפוש ביומן">
+                            <input type="search" id="auditSearchInput" class="filter-select audit-search audit-input" placeholder="חיפוש בפרטים, בטורניר או במשתמש" oninput="app.renderAuditTrail()" aria-label="חיפוש ביומן">
                             <span id="auditCount" class="audit-count"></span>
                         </div>
                         <div id="auditTrailContainer">
                             <!-- ייווצר דינמית ע"י ה-JS -->
                         </div>
                         <button type="button" id="auditLoadMoreBtn" class="btn-secondary btn-sm hidden" style="margin-top:10px;" onclick="app.loadAuditTrail(true)">⬇️ טען פעולות ישנות יותר</button>
+                        <!-- מחיקת רשומות מהיומן: הכל, לפי משתמש, או לפי טווח תאריכים -->
+                        <details class="audit-delete-panel" ontoggle="if (this.open) app.populateAuditDeleteUsers()">
+                            <summary>🗑️ מחיקת רשומות מהיומן</summary>
+                            <div class="audit-delete-body">
+                                <div class="audit-delete-modes" role="radiogroup" aria-label="מה למחוק">
+                                    <label><input type="radio" class="audit-input" name="auditDeleteMode" value="all" checked onchange="app.onAuditDeleteModeChange()"> כל הרשומות</label>
+                                    <label><input type="radio" class="audit-input" name="auditDeleteMode" value="user" onchange="app.onAuditDeleteModeChange()"> כל הרשומות של משתמש</label>
+                                    <label><input type="radio" class="audit-input" name="auditDeleteMode" value="dates" onchange="app.onAuditDeleteModeChange()"> לפי טווח תאריכים</label>
+                                </div>
+                                <div id="auditDeleteUserRow" class="audit-delete-row hidden">
+                                    <label for="auditDeleteUserSelect">משתמש:</label>
+                                    <select id="auditDeleteUserSelect" class="filter-select"></select>
+                                </div>
+                                <div id="auditDeleteDatesRow" class="audit-delete-row hidden">
+                                    <label for="auditDeleteFrom">מתאריך:</label>
+                                    <input type="date" id="auditDeleteFrom" class="filter-select audit-input">
+                                    <label for="auditDeleteTo">עד תאריך:</label>
+                                    <input type="date" id="auditDeleteTo" class="filter-select audit-input">
+                                    <small class="audit-delete-hint">הטווח כולל את שני התאריכים. אפשר למלא רק אחד מהם (למשל "עד תאריך" למחיקת כל מה שישן יותר).</small>
+                                </div>
+                                <button type="button" class="btn-danger btn-sm" onclick="app.deleteAuditEntries()">🗑️ מחק רשומות</button>
+                                <small class="audit-delete-hint">לפני המחיקה יוצג מספר הרשומות שיימחקו ותתבקש לאשר. המחיקה עצמה נרשמת ביומן.</small>
+                            </div>
+                        </details>
                     </div>
 
 
@@ -463,12 +487,6 @@
                     </div>
 
 
-                    <!-- חלק 5: פעולות קריטיות -->
-                    <div class="dash-section dash-critical" data-dash="tournaments">
-                        <h3 style="color:#dc2626;">⚠️ פעולות קריטיות</h3>
-                        <p style="font-size:0.9rem; color:#6b5b45;">איפוס כולל ימחק את תוצאות המשחקים ויאתחל את הטורניר למצב התחלתי.</p>
-                        <button class="btn-danger" onclick="app.hardReset()">⚠️ אפס טורניר לחלוטין (Hard Reset)</button>
-                    </div>
                 </div>
             </section>
         </main>
@@ -802,8 +820,20 @@ git push -u origin main</pre>
         </div>
     </div>
 
+    <!-- חלון אישור פנימי לפעולות שאינן הפיכות (במקום חלון ה-confirm של הדפדפן) -->
+    <div id="confirm-modal" class="modal-overlay confirm-overlay hidden" onclick="if (event.target === this) app.resolveConfirm(false)" onkeydown="if (event.key === 'Escape') app.resolveConfirm(false)">
+        <div class="modal-card" style="max-width: 460px;" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalMessage">
+            <h2 style="margin-top:0; color:#271e16;">⚠️ אישור פעולה</h2>
+            <p id="confirmModalMessage" class="confirm-message"></p>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap;">
+                <button type="button" id="confirmModalOkBtn" class="btn-danger" onclick="app.resolveConfirm(true)">אישור</button>
+                <button type="button" id="confirmModalCancelBtn" class="btn-secondary" onclick="app.resolveConfirm(false)">ביטול</button>
+            </div>
+        </div>
+    </div>
+
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.57"></script>
+    <script src="./app.js?v=4.58"></script>
 </body>
 </html>
 

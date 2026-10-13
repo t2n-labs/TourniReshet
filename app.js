@@ -1102,7 +1102,7 @@ class TournamentApp {
         // אם הטורניר סגור - נעול לחלוטין לשינויים לכולם (כולל Admin ו-Owner)!
         const isReadOnly = (newRole === 'viewer') || isClosed;
 
-        const allInputs = document.querySelectorAll('#screen-main input:not(#auditSearchInput):not(#newAdminEmailInput):not(#newTournamentNameInput):not(#wizardTourneyName)');
+        const allInputs = document.querySelectorAll('#screen-main input:not(.audit-input):not(#newAdminEmailInput):not(#newTournamentNameInput):not(#wizardTourneyName)');
         allInputs.forEach(input => {
             input.disabled = isReadOnly;
         });
@@ -1312,7 +1312,7 @@ class TournamentApp {
             tournament_finalize: 'סיום טורניר', board_create: 'יצירת לוח', stage_lock: 'נעילת שלב הבתים',
             team_rename: 'שינוי שם קבוצה', team_name: 'הזנת שם קבוצה', score: 'תוצאה', playoff_reset: 'איפוס פלייאוף', hard_reset: 'איפוס מלא',
             user_add: 'הוספת משתמש', user_edit: 'עדכון משתמש', user_remove: 'הסרת משתמש',
-            debug_tool: 'כלי בדיקה', export: 'ייצוא'
+            debug_tool: 'כלי בדיקה', export: 'ייצוא', audit_delete: 'מחיקה מהיומן'
         };
         return labels[action] || action;
     }
@@ -1444,6 +1444,190 @@ class TournamentApp {
             console.warn("[Audit] Failed to load guest statistics:", e);
             container.innerHTML = `<p class="placeholder-text">לא ניתן לטעון את סטטיסטיקת הצופים: ${this.escapeHtml(e.message || e)}</p>`;
         }
+    }
+
+    /* ========================================================
+       חלון אישור פנימי: מחליף את חלון ה-confirm של הדפדפן, שהדפדפן עלול לחסום בשקט
+       ======================================================== */
+
+    // מחזיר Promise שנפתר ל-true באישור ול-false בביטול
+    confirmAction(message, confirmLabel = 'אישור', danger = false) {
+        const modal = document.getElementById('confirm-modal');
+        if (!modal) return Promise.resolve(window.confirm(message));
+        // בקשת אישור קודמת שעדיין פתוחה נחשבת כמבוטלת
+        if (this.pendingConfirm) this.pendingConfirm(false);
+
+        document.getElementById('confirmModalMessage').textContent = message;
+        const okBtn = document.getElementById('confirmModalOkBtn');
+        okBtn.textContent = confirmLabel;
+        okBtn.className = danger ? 'btn-danger' : 'btn-primary';
+        modal.classList.remove('hidden');
+        document.getElementById('confirmModalCancelBtn').focus();
+
+        return new Promise(resolve => {
+            this.pendingConfirm = (result) => {
+                this.pendingConfirm = null;
+                modal.classList.add('hidden');
+                resolve(!!result);
+            };
+        });
+    }
+
+    resolveConfirm(result) {
+        if (this.pendingConfirm) this.pendingConfirm(result);
+    }
+
+    /* ========================================================
+       מחיקת רשומות מיומן הפעולות (בעלים בלבד): הכל, לפי משתמש, או לפי טווח תאריכים
+       ======================================================== */
+
+    onAuditDeleteModeChange() {
+        const mode = document.querySelector('input[name="auditDeleteMode"]:checked')?.value || 'all';
+        document.getElementById('auditDeleteUserRow')?.classList.toggle('hidden', mode !== 'user');
+        document.getElementById('auditDeleteDatesRow')?.classList.toggle('hidden', mode !== 'dates');
+    }
+
+    // רשימת המשתמשים למחיקה: כל מי שמופיע ביומן שנטען, וכל משתמשי המערכת
+    populateAuditDeleteUsers() {
+        const select = document.getElementById('auditDeleteUserSelect');
+        if (!select) return;
+        const current = select.value;
+        const emails = new Set((this.auditEntries || []).map(e => e.email).filter(Boolean));
+        this.getUnifiedUsers().forEach(u => { if (u.email && u.role !== 'viewer') emails.add(u.email.toLowerCase()); });
+        const list = [...emails].sort();
+        select.innerHTML = '<option value="" selected disabled hidden>בחר משתמש...</option>' +
+            list.map(email => `<option value="${this.escapeHtml(email)}">${this.escapeHtml(email)}</option>`).join('');
+        if (list.includes(current)) select.value = current;
+    }
+
+    // קורא מהטופס מה למחוק. מחזיר null (עם הודעה) אם חסר נתון
+    readAuditDeleteFilter() {
+        const mode = document.querySelector('input[name="auditDeleteMode"]:checked')?.value || 'all';
+        if (mode === 'user') {
+            const email = document.getElementById('auditDeleteUserSelect')?.value || '';
+            if (!email) { this.showAlert("יש לבחור את המשתמש שאת רשומותיו רוצים למחוק.", "warning"); return null; }
+            return { email, label: `כל הרשומות של ${email}` };
+        }
+        if (mode === 'dates') {
+            const fromValue = document.getElementById('auditDeleteFrom')?.value || '';
+            const toValue = document.getElementById('auditDeleteTo')?.value || '';
+            if (!fromValue && !toValue) { this.showAlert("יש לבחור לפחות תאריך אחד: מתאריך או עד תאריך.", "warning"); return null; }
+            // הטווח כולל את שני הימים עצמם, לפי השעון המקומי
+            const from = fromValue ? new Date(`${fromValue}T00:00:00`).getTime() : null;
+            const to = toValue ? new Date(`${toValue}T23:59:59.999`).getTime() : null;
+            if (from !== null && to !== null && from > to) { this.showAlert("תאריך ההתחלה מאוחר מתאריך הסיום.", "warning"); return null; }
+            const day = (value) => this.formatTournamentDate(value);
+            const label = (fromValue && toValue) ? `הרשומות מ-${day(fromValue)} עד ${day(toValue)}`
+                : (fromValue ? `הרשומות מ-${day(fromValue)} והלאה` : `הרשומות עד ${day(toValue)}`);
+            return { from, to, label };
+        }
+        return { label: 'כל הרשומות ביומן' };
+    }
+
+    auditEntryMatches(entry, filter) {
+        if (filter.email && entry.email !== filter.email) return false;
+        if (filter.from !== null && filter.from !== undefined && entry.ts < filter.from) return false;
+        if (filter.to !== null && filter.to !== undefined && entry.ts > filter.to) return false;
+        return true;
+    }
+
+    async deleteAuditEntries() {
+        if (this.currentRole !== 'owner') {
+            this.showAlert("רק הבעלים רשאי למחוק רשומות מיומן הפעולות.", "error");
+            return;
+        }
+        const filter = this.readAuditDeleteFilter();
+        if (!filter) return;
+        this.flushAllScoreAudits();
+
+        try {
+            // שלב 1: איתור הרשומות, כדי להציג בחלון האישור כמה יימחקו
+            let refs = [];
+            let localList = null;
+            if (this.db) {
+                let query = this.db.collection('audit_log');
+                if (filter.email) query = query.where('email', '==', filter.email);
+                if (filter.from !== null && filter.from !== undefined) query = query.where('ts', '>=', filter.from);
+                if (filter.to !== null && filter.to !== undefined) query = query.where('ts', '<=', filter.to);
+                refs = (await query.get()).docs.map(doc => doc.ref);
+            } else {
+                try { localList = JSON.parse(localStorage.getItem('tournament_local_audit_log') || '[]'); } catch (e) { localList = []; }
+                refs = localList.filter(entry => this.auditEntryMatches(entry, filter));
+            }
+
+            if (refs.length === 0) {
+                this.showAlert("לא נמצאו רשומות מתאימות למחיקה.", "warning");
+                return;
+            }
+            const confirmed = await this.confirmAction(
+                `למחוק לצמיתות ${refs.length} רשומות מיומן הפעולות?\n${filter.label}.\nלא ניתן לשחזר רשומות שנמחקו.`,
+                `🗑️ מחק ${refs.length} רשומות`, true);
+            if (!confirmed) return;
+
+            // שלב 2: מחיקה (בענן - במנות, בגלל מגבלת גודל של פעולה אחת)
+            if (this.db) {
+                for (let i = 0; i < refs.length; i += 400) {
+                    const batch = this.db.batch();
+                    refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+                    await batch.commit();
+                }
+            } else {
+                localStorage.setItem('tournament_local_audit_log', JSON.stringify(localList.filter(entry => !this.auditEntryMatches(entry, filter))));
+            }
+
+            // המחיקה עצמה נרשמת ביומן, כדי שתמיד יהיה תיעוד מי מחק ומה
+            this.logAudit('audit_delete', `מחיקת ${refs.length} רשומות מיומן הפעולות: ${filter.label}`);
+            this.showAlert(`נמחקו ${refs.length} רשומות מיומן הפעולות.`, "success");
+            await this.loadAuditTrail();
+        } catch (e) {
+            console.warn("[Audit] Failed to delete audit entries:", e);
+            this.showAlert(`מחיקת הרשומות נכשלה: ${e.message || e}`, "error");
+        }
+    }
+
+    // איפוס תוצאות של טורניר מתוך רשימת הטורנירים: כל התוצאות ושיבוץ הפלייאוף נמחקים; הקבוצות והמבנה נשארים
+    async resetTournamentResults(tourneyId) {
+        if (this.currentRole !== 'owner') {
+            this.showAlert("רק הבעלים רשאי לאפס תוצאות של טורניר.", "error");
+            return;
+        }
+        const tourney = this.tournaments.find(t => t.id === tourneyId);
+        if (!tourney) return;
+        if (tourney.isArchived || tourney.isFinished) {
+            this.showAlert("לא ניתן לאפס טורניר שהסתיים או שנמצא בארכיון.", "warning");
+            return;
+        }
+        const confirmed = await this.confirmAction(
+            `לאפס את כל התוצאות של הטורניר "${tourney.name}"?\nכל תוצאות המשחקים ושיבוץ הפלייאוף יימחקו. שמות הקבוצות ומבנה הטורניר יישארו.\nלא ניתן לבטל את הפעולה.`,
+            '🔄 אפס תוצאות', true);
+        if (!confirmed) return;
+
+        if (tourneyId !== this.activeTournamentId) this.switchTournament(tourneyId, false);
+        if (this.activeTournamentId !== tourneyId) return;
+
+        (this.matches || []).forEach(m => {
+            m.score1 = null;
+            m.score2 = null;
+            m.winner = null;
+            if (Array.isArray(m.sets)) m.sets = [];
+        });
+        if (this.format === 'knockout_only') {
+            this.playoffMatches = this.buildInitialKnockoutBracket(this.playoffSeeds || [], this.teams.length);
+        } else {
+            this.playoffSeeds = [];
+            this.playoffMatches = (this.format === 'groups_and_playoff') ? this.createEmptyPlayoffMatches(this.playoffSize) : null;
+        }
+
+        if (this.format !== 'knockout_only') {
+            this.calculateStandings();
+            this.renderMatches();
+        }
+        this.renderPlayoffBracket();
+        this.saveActiveTournamentData();
+        this.updateCloseButtonUI();
+        this.renderOwnerTournamentsList();
+        this.logAudit('hard_reset', 'איפוס כל תוצאות הטורניר ושיבוץ הפלייאוף', tourney);
+        this.showAlert(`כל התוצאות של הטורניר "${tourney.name}" אופסו.`, "warning");
     }
 
     getAllUsers() {
@@ -1682,7 +1866,7 @@ class TournamentApp {
             return;
         }
 
-        if (!confirm(`האם אתה בטוח שברצונך להסיר את המשתמש ${cleanEmail} מהמערכת וממסד הנתונים?`)) {
+        if (!(await this.confirmAction(`להסיר את המשתמש ${cleanEmail} מהמערכת וממסד הנתונים?`, '🗑️ הסר משתמש', true))) {
             return;
         }
 
@@ -3110,7 +3294,7 @@ class TournamentApp {
     }
 
     // סיום טורניר: התוצאות ננעלות לכולם (גם למנהלים), אך הטורניר נשאר גלוי לצופים - בשונה מארכיון
-    finalizeActiveTournament() {
+    async finalizeActiveTournament() {
         if (!this.isManagerRole()) return;
         const tourney = this.tournaments.find(t => t.id === this.activeTournamentId);
         if (!tourney || tourney.isArchived || tourney.isFinished) return;
@@ -3121,7 +3305,8 @@ class TournamentApp {
             this.showAlert("ניתן לסיים טורניר רק לאחר שהוזנו תוצאות לכל המשחקים.", "warning");
             return;
         }
-        if (!confirm(`לסיים את הטורניר "${tourney.name}"? לאחר הסיום התוצאות סופיות ולא ניתן יהיה לשנות אותן.`)) {
+        if (!(await this.confirmAction(`לסיים את הטורניר "${tourney.name}"?
+לאחר הסיום התוצאות סופיות ולא ניתן יהיה לשנות אותן.`, '🏁 סיים טורניר'))) {
             return;
         }
 
@@ -3213,7 +3398,7 @@ class TournamentApp {
         const confirmText = isLastTournament
             ? `הטורניר "${deletedName}" הוא הטורניר האחרון במערכת. לאחר המחיקה לא יהיו טורנירים עד שייווצר טורניר חדש. למחוק לצמיתות?`
             : `האם אתה בטוח שברצונך למחוק לצמיתות את הטורניר "${deletedName}"? פעולה זו אינה ניתנת לביטול.`;
-        if (!confirm(confirmText)) {
+        if (!(await this.confirmAction(confirmText, '🗑️ מחק טורניר', true))) {
             return;
         }
 
@@ -3304,6 +3489,7 @@ class TournamentApp {
                                             ${isCurrentlyActive ? '👁️ צפה (פעיל)' : '👁️ צפה בטורניר'}
                                         </button>
                                         ${t.isArchived ? `<button type="button" class="btn-sm btn-secondary" onclick="app.toggleCloseTournament('${t.id}')" title="פתח טורניר מחדש">🔓 פתח</button>` : ''}
+                                        ${(this.currentRole === 'owner' && !t.isArchived && !t.isFinished) ? `<button type="button" class="btn-sm btn-secondary" onclick="app.resetTournamentResults('${t.id}')" title="מחיקת כל התוצאות ושיבוץ הפלייאוף של הטורניר הזה; הקבוצות והמבנה נשארים">🔄 אפס תוצאות</button>` : ''}
                                         ${deleteBtnHtml}
                                     </div>
                                 </td>
@@ -5608,31 +5794,6 @@ class TournamentApp {
         if (!this.playoffSeeds || this.playoffSeeds.length === 0) return;
         this.logAudit('playoff_reset', 'איפוס תוצאות הפלייאוף ושיבוץ מחדש');
         this.seedPlayoffs();
-    }
-
-    hardReset() {
-        if (this.currentRole !== 'owner') {
-            this.showAlert("רק Owner רשאי לאפס את הטורניר לחלוטין!", "error");
-            return;
-        }
-
-        if (this.isCurrentTournamentClosed()) {
-            this.showAlert("הטורניר סגור ונעול לעריכה.", "warning");
-            return;
-        }
-
-        this.teams = [...this.defaultTeams];
-        this.renderTeamInputs();
-        this.generateTournamentGroups(false);
-        this.playoffSeeds = [];
-        const playoffContainer = document.getElementById('playoff-bracket-container');
-        if (playoffContainer) {
-            playoffContainer.innerHTML = '<p class="placeholder-text">שלב הפלייאוף יופעל רק לאחר סיום שלב הבתים ונעילתו ע"י האדמין.</p>';
-        }
-        this.saveActiveTournamentData();
-        this.switchTab('setup');
-        this.logAudit('hard_reset', 'איפוס מלא של הטורניר (Hard Reset)');
-        this.showAlert("הטורניר אופס לחלוטין למצב התחלתי!", "warning");
     }
 
     /* ========================================================

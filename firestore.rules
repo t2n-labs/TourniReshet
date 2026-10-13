@@ -27,11 +27,12 @@ service cloud.firestore {
       allow write: if signedIn();
     }
 
-    // Audit trail: signed-in managers can only add entries; only the owner can read; nobody can edit or delete.
+    // Audit trail: signed-in managers can only add entries; only the owner can read or delete; nobody can edit.
     match /audit_log/{id} {
       allow create: if signedIn();
       allow read: if isOwner();
-      allow update, delete: if false;
+      allow delete: if isOwner();   // the owner can prune old entries from the dashboard
+      allow update: if false;
     }
 
     // Guest statistics: any visitor adds a visit; only the owner can read; nobody can edit or delete.

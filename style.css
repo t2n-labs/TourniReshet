@@ -3528,3 +3528,70 @@ body.owner-dashboard #tab-users {
     padding-top: 20px;
     border-top: 1px solid var(--border-color);
 }
+
+/* ==========================================================================
+   חלון אישור פנימי ומחיקת רשומות מיומן הפעולות
+   ========================================================================== */
+.confirm-overlay {
+    z-index: 10020; /* מעל חלונות אחרים, מתחת להתראות */
+}
+
+.confirm-message {
+    white-space: pre-line;
+    color: var(--text-main);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.audit-delete-panel {
+    margin-top: 14px;
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    background: #fef2f2;
+}
+
+.audit-delete-panel > summary {
+    padding: 9px 12px;
+    font-weight: 700;
+    color: #b91c1c;
+    cursor: pointer;
+}
+
+.audit-delete-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 4px 12px 12px;
+}
+
+.audit-delete-modes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.audit-delete-modes label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+.audit-delete-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+
+.audit-delete-hint {
+    flex-basis: 100%;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--text-muted);
+}

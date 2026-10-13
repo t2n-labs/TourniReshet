@@ -134,6 +134,9 @@ When writing code or introducing features:
 - Score edits are logged once per game, a few seconds after the last keystroke (`queueScoreAudit`), not per digit.
 - Viewers are not audited. `logGuestVisit` appends one document to `guest_visits` per viewer entry (tournament, time, random per-browser id) for the statistics tiles.
 - Both views live in the owner tab and are loaded only when `currentRole === "owner"`. Real protection needs the rules in `firestore.rules` to be published in the Firebase console - the client check alone does not stop someone reading the collection directly.
+- The owner can delete audit entries from the dashboard (`deleteAuditEntries`): all, one user, or a date range. The matching count is shown in the confirmation, and the deletion itself is logged as `audit_delete`.
+- Irreversible actions ask for confirmation with the in-app `confirmAction(message, label, danger)` (returns a Promise), never the browser `confirm()`, which browsers can silently suppress.
+- Tournament results are reset per row in the dashboard tournaments list (`resetTournamentResults`): scores and playoff seeding are cleared, teams and structure stay.
 
 ## 👑 Owner Views (v4.56)
 - The owner has two separate views, switched by the header button `#headerOwnerDashboardBtn` (`toggleOwnerDashboard`): the tournament view (tournament selector, tournament buttons, tabs) and the system-management view (`#tab-users`, entered with `switchTab("users")`).
