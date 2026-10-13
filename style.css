@@ -44,7 +44,7 @@ body {
     top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 9999;
+    z-index: 10050; /* מעל חלונות המודאל (10000), כדי שהתראה תיראה גם כשחלון פתוח */
     min-width: 320px;
     max-width: 90vw;
     padding: 12px 18px;
@@ -3313,4 +3313,31 @@ body.no-tournament #headerFinalizeTournamentBtn {
     text-align: center;
     font-weight: 800;
     color: var(--text-muted);
+}
+
+/* ==========================================================================
+   אשף הטורניר: הודעת שגיאה בתוך החלון וסימון שדות חסרים
+   ========================================================================== */
+.wizard-error-box {
+    margin-top: 16px;
+    padding: 10px 12px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 10px;
+    color: #b91c1c;
+    font-weight: 700;
+    font-size: 0.92rem;
+    line-height: 1.4;
+}
+
+#new-tournament-wizard-modal .login-input.field-missing {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.18);
+    background-color: #fef2f2;
+}
+
+#new-tournament-wizard-modal .wizard-format-options.field-missing {
+    outline: 2px solid #dc2626;
+    outline-offset: 6px;
+    border-radius: 12px;
 }

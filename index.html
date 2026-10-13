@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.52">
+    <link rel="stylesheet" href="./style.css?v=4.53">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -579,7 +579,7 @@ git push -u origin main</pre>
                 הגדר את מבנה הטורניר באופן דינמי: שלב בתים בלבד (ליגה), בתים משולב פלייאוף, או נוקאאוט ישיר.
             </p>
 
-            <form onsubmit="event.preventDefault(); app.submitTournamentWizard();">
+            <form onsubmit="event.preventDefault(); app.submitTournamentWizard();" oninput="app.onWizardFieldEdited(event)" onchange="app.onWizardFieldEdited(event)" novalidate>
                 <!-- שלב 1: שם הטורניר -->
                 <div class="login-field">
                     <label for="wizardTourneyName">🏆 שם הטורניר:</label>
@@ -697,6 +697,9 @@ git push -u origin main</pre>
                     </div>
                 </div>
 
+                <!-- הודעת שגיאה של האשף: מוצגת בתוך החלון, מעל כפתור היצירה -->
+                <div id="wizardErrorBox" class="wizard-error-box hidden" role="alert"></div>
+
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:22px;">
                     <button type="submit" id="wizardSubmitBtn" class="btn-primary" style="padding:10px 20px; font-size:1rem; font-weight:800;">
                         🚀 צור טורניר
@@ -755,7 +758,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.52"></script>
+    <script src="./app.js?v=4.53"></script>
 </body>
 </html>
 

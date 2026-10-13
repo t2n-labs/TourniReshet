@@ -2127,6 +2127,7 @@ class TournamentApp {
         this.updateWizardPlayoffOptions();
         this.onWizardFormatChange();
         this.updateWizardSummary();
+        this.clearWizardErrors();
 
         if (modal) modal.classList.remove('hidden');
     }
@@ -2139,6 +2140,24 @@ class TournamentApp {
             return;
         }
         this.openTournamentWizard(true, targetId);
+    }
+
+    clearWizardErrors() {
+        const errorBox = document.getElementById('wizardErrorBox');
+        if (errorBox) { errorBox.textContent = ''; errorBox.classList.add('hidden'); }
+        document.querySelectorAll('#new-tournament-wizard-modal .field-missing').forEach(el => el.classList.remove('field-missing'));
+    }
+
+    // שדה שסומן כחסר מפסיק להיות מסומן ברגע שממלאים אותו; כשלא נשארו שדות מסומנים גם הודעת השגיאה נעלמת
+    onWizardFieldEdited(event) {
+        const target = event && event.target;
+        if (!target) return;
+        if (target.name === 'wizardFormat') {
+            document.querySelector('.wizard-format-options')?.classList.remove('field-missing');
+        } else if (String(target.value || '').trim()) {
+            target.classList.remove('field-missing');
+        }
+        if (!document.querySelector('#new-tournament-wizard-modal .field-missing')) this.clearWizardErrors();
     }
 
     closeTournamentWizard() {
@@ -2337,19 +2356,33 @@ class TournamentApp {
         // הקמת טורניר חדש בלבד: אין ברירות מחדל, ולכן כל שדה רלוונטי חייב להיות מלא
         const wizardValue = (id) => document.getElementById(id)?.value || '';
         const chosenFormat = document.querySelector('input[name="wizardFormat"]:checked')?.value || null;
+        // כל שדה חסר נרשם יחד עם האלמנט שלו, כדי לסמן אותו באדום ולהעביר אליו את הפוקוס
         const missing = [];
-        if (!nameInp || !nameInp.value.trim()) missing.push('שם הטורניר');
-        if (!chosenFormat) missing.push('מבנה הטורניר');
+        const missingEls = [];
+        const addMissing = (label, el) => { missing.push(label); if (el) missingEls.push(el); };
+        const wizardEl = (id) => document.getElementById(id);
+        if (!nameInp || !nameInp.value.trim()) addMissing('שם הטורניר', nameInp);
+        if (!chosenFormat) addMissing('מבנה הטורניר', document.querySelector('.wizard-format-options'));
         if (chosenFormat === 'knockout_only') {
-            if (!wizardValue('wizardKnockoutTeams')) missing.push('כמות הקבוצות');
+            if (!wizardValue('wizardKnockoutTeams')) addMissing('כמות הקבוצות', wizardEl('wizardKnockoutTeams'));
         } else if (chosenFormat) {
-            if (!wizardValue('wizardNumGroups')) missing.push('כמות בתים');
-            if (!wizardValue('wizardTeamsPerGroup')) missing.push('כמות קבוצות בכל בית');
-            if (chosenFormat === 'groups_and_playoff' && !wizardValue('wizardPlayoffSize')) missing.push('גודל עץ הפלייאוף');
+            if (!wizardValue('wizardNumGroups')) addMissing('כמות בתים', wizardEl('wizardNumGroups'));
+            if (!wizardValue('wizardTeamsPerGroup')) addMissing('כמות קבוצות בכל בית', wizardEl('wizardTeamsPerGroup'));
+            if (chosenFormat === 'groups_and_playoff' && !wizardValue('wizardPlayoffSize')) addMissing('גודל עץ הפלייאוף', wizardEl('wizardPlayoffSize'));
         }
-        if (!wizardValue('wizardSetsPerMatch')) missing.push('מספר מערכות בכל משחק');
+        if (!wizardValue('wizardSetsPerMatch')) addMissing('מספר מערכות בכל משחק', wizardEl('wizardSetsPerMatch'));
+        this.clearWizardErrors();
         if (missing.length > 0) {
-            this.showAlert(`יש למלא את כל שדות האשף. חסר: ${missing.join(', ')}.`, "warning");
+            // ההודעה מוצגת בתוך האשף עצמו, ליד כפתור היצירה, והשדות החסרים מסומנים
+            const message = `לא ניתן ליצור את הטורניר. יש למלא: ${missing.join(', ')}.`;
+            const errorBox = document.getElementById('wizardErrorBox');
+            if (errorBox) { errorBox.textContent = `⚠️ ${message}`; errorBox.classList.remove('hidden'); }
+            missingEls.forEach(el => el.classList.add('field-missing'));
+            if (missingEls[0]) {
+                missingEls[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                if (typeof missingEls[0].focus === 'function') missingEls[0].focus({ preventScroll: true });
+            }
+            this.showAlert(message, "warning");
             return;
         }
 
