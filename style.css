@@ -3341,3 +3341,19 @@ body.no-tournament #headerFinalizeTournamentBtn {
     outline-offset: 6px;
     border-radius: 12px;
 }
+
+/* משחק של שתי מערכות שהסתיים 1:1: הסבר ההכרעה לפי סך הנקודות */
+.sets-decision-note {
+    padding: 5px 12px 7px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #166534;
+    background: #f0fdf4;
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.sets-decision-note.is-tie {
+    color: #b45309;
+    background: #fffbeb;
+}

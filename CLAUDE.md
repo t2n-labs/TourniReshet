@@ -124,6 +124,11 @@ When writing code or introducing features:
 - The games live in `playoffMatches.placement[]` (ids `pl_<houseLetter>_<n>`, with `groupId` and `placeFrom`). They reuse the playoff cards and score handlers (`findPlayoffMatch` resolves `pl_` ids). The winner takes place `placeFrom`, the loser `placeFrom + 1` (`getInternalFinalRanking`).
 - Use `hasPlayoffStage()` / `isInternalPlayoff()` / `isPlayoffComplete()` instead of comparing `format` to `"groups_and_playoff"` directly.
 
+## 🏐 Sets Per Game (v4.54)
+- `setsPerMatch` is 1, 2 or 3 and applies to every game in the tournament (houses, knockout, internal playoff). `isMultiSet()` is true for 2 and 3.
+- Two sets: 2:0 wins. At 1:1 the winner is the team with more total points over both sets (`summarizeSets` → `decidedByPoints`). Equal totals (`pointsTie`) leave the game undecided - there are no ties - and the card shows a note asking for a correction.
+- `score1`/`score2` hold sets won, so a points-decided game is stored as 1:1 with a `winner`; `isTiedScore` returns false for it.
+
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
 - Merge `tomer` into `main` (production) only after the owner approves the change on staging.

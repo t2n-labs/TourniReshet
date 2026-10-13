@@ -1818,7 +1818,7 @@ class TournamentApp {
         // בפלייאוף פנימי אין עץ: כל הקבוצות בבית משחקות משחק מיקום אחד
         if (this.isInternalPlayoff()) this.playoffSize = 0;
         // מספר המערכות בכל משחק בשלב הבתים: 1 או 3 (הטוב משלוש). טורניר ישן ללא ההגדרה משוחק במערכה אחת.
-        this.setsPerMatch = (parseInt(tData.setsPerMatch, 10) === 3) ? 3 : 1;
+        this.setsPerMatch = [2, 3].includes(parseInt(tData.setsPerMatch, 10)) ? parseInt(tData.setsPerMatch, 10) : 1;
         // לוח המשחקים נוצר רק בלחיצה על "ייצר לוח משחקים" לאחר הזנת כל שמות הקבוצות.
         // טורניר שנשמר לפני שהדגל הזה נוסף כבר נמצא בשימוש, ולכן נחשב כמי שהלוח שלו נוצר.
         this.boardCreated = (tData.boardCreated !== undefined) ? !!tData.boardCreated : true;
@@ -2473,7 +2473,7 @@ class TournamentApp {
             numGroups,
             teamsPerGroup,
             playoffSize,
-            setsPerMatch: (parseInt(document.getElementById('wizardSetsPerMatch')?.value || '1', 10) === 3) ? 3 : 1,
+            setsPerMatch: [2, 3].includes(parseInt(document.getElementById('wizardSetsPerMatch')?.value || '1', 10)) ? parseInt(document.getElementById('wizardSetsPerMatch').value, 10) : 1,
             pointsPerWin,
             pointsPerLoss,
             boardCreated: false,
@@ -3614,7 +3614,7 @@ class TournamentApp {
        ======================================================== */
 
     isMultiSet() {
-        return this.setsPerMatch === 3;
+        return this.setsPerMatch === 2 || this.setsPerMatch === 3;
     }
 
     randomCatchballSet() {
@@ -3622,9 +3622,13 @@ class TournamentApp {
         return Math.random() < 0.5 ? { s1: 21, s2: loserPoints } : { s1: loserPoints, s2: 21 };
     }
 
-    // ממלא למשחק תוצאה אקראית לדוגמה: מערכה אחת, או הטוב משלוש
+    // ממלא למשחק תוצאה אקראית לדוגמה: מערכה אחת, שתי מערכות (הכרעה בסך הנקודות ב-1:1), או הטוב משלוש
     fillRandomResult(m) {
-        if (this.isMultiSet()) {
+        if (this.setsPerMatch === 2) {
+            do {
+                m.sets = [this.randomCatchballSet(), this.randomCatchballSet()];
+            } while (!this.applySetsToMatch(m).winner);
+        } else if (this.isMultiSet()) {
             const sets = [];
             let w1 = 0, w2 = 0;
             while (w1 < 2 && w2 < 2) {
@@ -3667,7 +3671,44 @@ class TournamentApp {
             }
             return { complete, tied, counts, notNeeded, winner };
         });
-        return { w1, w2, info, any: info.some(i => i.counts), winner: w1 >= needed ? 'team1' : (w2 >= needed ? 'team2' : null) };
+        let winner = w1 >= needed ? 'team1' : (w2 >= needed ? 'team2' : null);
+
+        // משחק של שתי מערכות שהסתיים 1:1 מוכרע לפי סך הנקודות בשתי המערכות.
+        // שוויון גם בסך הנקודות אינו הכרעה (אין תיקו): המשחק נשאר פתוח עד שהתוצאה מתוקנת.
+        let p1 = 0, p2 = 0;
+        info.forEach((i, idx) => {
+            if (i.counts) { p1 += Number(sets[idx].s1); p2 += Number(sets[idx].s2); }
+        });
+        let decidedByPoints = false, pointsTie = false;
+        if (sets.length === 2 && w1 === 1 && w2 === 1) {
+            if (p1 !== p2) {
+                winner = p1 > p2 ? 'team1' : 'team2';
+                decidedByPoints = true;
+            } else {
+                pointsTie = true;
+            }
+        }
+        return { w1, w2, info, any: info.some(i => i.counts), winner, p1, p2, decidedByPoints, pointsTie };
+    }
+
+    // הסבר מתחת לכרטיס כשמשחק של שתי מערכות הסתיים 1:1: מי ניצחה בסך הנקודות, או שנדרש תיקון
+    renderSetsDecisionNote(m, summary) {
+        if (summary.decidedByPoints) {
+            const winnerName = summary.winner === 'team1' ? (m.team1Name || m.team1?.teamName) : (m.team2Name || m.team2?.teamName);
+            return `<div class="sets-decision-note">⚖️ 1:1 במערכות - ${winnerName} ניצחה בסך הנקודות (<bdi>${Math.max(summary.p1, summary.p2)}:${Math.min(summary.p1, summary.p2)}</bdi>)</div>`;
+        }
+        if (summary.pointsTie) {
+            return `<div class="sets-decision-note is-tie">⚠️ 1:1 במערכות ושוויון גם בסך הנקודות (<bdi>${summary.p1}:${summary.p2}</bdi>) - המשחק לא הוכרע</div>`;
+        }
+        return '';
+    }
+
+    alertIfPointsTie(match) {
+        if (match && this.summarizeSets(match).pointsTie) {
+            this.showAlert("⚠️ אין תיקו בכדורשת: המשחק הסתיים 1:1 במערכות ובשוויון גם בסך הנקודות. יש לתקן את התוצאה כך שתהיה מנצחת.", "warning");
+            return true;
+        }
+        return false;
     }
 
     // תוצאת המשחק נגזרת מהמערכות: התוצאה היא מספר המערכות שכל קבוצה ניצחה
@@ -3725,6 +3766,8 @@ class TournamentApp {
         const info = this.summarizeSets(match).info[setIdx];
         if (info && info.tied) {
             this.showAlert(`⚠️ אין תיקו בכדורשת: במערכה ${setIdx + 1} יש להזין תוצאה עם מנצחת.`, "warning");
+        } else {
+            this.alertIfPointsTie(match);
         }
     }
 
@@ -3775,6 +3818,7 @@ class TournamentApp {
                 </div>
                 ${row(1, m.team1Name, summary.w1)}
                 ${row(2, m.team2Name, summary.w2)}
+                ${this.renderSetsDecisionNote(m, summary)}
             </div>
         `;
     }
@@ -4016,6 +4060,8 @@ class TournamentApp {
     }
 
     isTiedScore(match) {
+        // משחק של שתי מערכות שהסתיים 1:1 והוכרע בסך הנקודות אינו תיקו, למרות שמספר המערכות שווה
+        if (match && this.isMultiSet() && (match.winner === 'team1' || match.winner === 'team2')) return false;
         return !!match && match.score1 !== null && match.score2 !== null
             && match.score1 !== undefined && match.score2 !== undefined
             && Number(match.score1) === Number(match.score2);
@@ -4575,6 +4621,7 @@ class TournamentApp {
                         ${setsRow(1, team1Name, team1Seed, isRow1Winner, summary.w1)}
                         ${setsRow(2, team2Name, team2Seed, isRow2Winner, summary.w2)}
                     </div>
+                    ${this.renderSetsDecisionNote(m, summary)}
                 </div>
             `;
             }
@@ -4640,7 +4687,7 @@ class TournamentApp {
         // כרטיס מוקטן לעץ במובייל: שמות ותוצאות בלבד, הקשה פותחת את המשחק המלא
         const renderCompactCard = (m, isFinal = false) => {
             if (!m) return '';
-            const isTie = (m.score1 !== null && m.score2 !== null && m.score1 === m.score2);
+            const isTie = this.isTiedScore(m);
             const miniRow = (team, score, isWinner) => `
                 <span class="mini-row ${isWinner ? 'winner' : ''} ${team ? '' : 'is-waiting'}">
                     <span class="mini-name">${team ? team.teamName : 'ממתין'}</span>
@@ -4958,6 +5005,8 @@ class TournamentApp {
         const info = this.summarizeSets(match).info[setIdx];
         if (info && info.tied) {
             this.showAlert(`⚠️ אין תיקו בכדורשת: במערכה ${setIdx + 1} יש להזין תוצאה עם מנצחת.`, "warning");
+        } else {
+            this.alertIfPointsTie(match);
         }
     }
 
@@ -5024,6 +5073,8 @@ class TournamentApp {
             const tiedSet = match ? this.summarizeSets(match).info.findIndex(info => info.tied) : -1;
             if (tiedSet !== -1) {
                 this.showAlert(`⚠️ אין תיקו בכדורשת: במערכה ${tiedSet + 1} יש להזין תוצאה עם מנצחת.`, "warning");
+            } else {
+                this.alertIfPointsTie(match);
             }
             return;
         }
@@ -5086,7 +5137,9 @@ class TournamentApp {
             return Math.random() < 0.5 ? { s1: 21, s2: loserPoints } : { s1: loserPoints, s2: 21 };
         };
         this.matches.forEach(m => {
-            if (this.isMultiSet()) {
+            if (this.setsPerMatch === 2) {
+                this.fillRandomResult(m);
+            } else if (this.isMultiSet()) {
                 const sets = [];
                 let w1 = 0, w2 = 0;
                 while (w1 < 2 && w2 < 2) {
