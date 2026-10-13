@@ -3219,3 +3219,98 @@ body.no-tournament #headerFinalizeTournamentBtn {
     color: var(--text-muted);
     line-height: 1.4;
 }
+
+/* ==========================================================================
+   פלייאוף פנימי: משחקי מיקום בתוך כל בית והדירוג הסופי שנקבע מהם
+   ========================================================================== */
+.internal-playoff {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.internal-house {
+    background: #fbf5ea;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.internal-house-title {
+    margin: 0 0 10px;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.internal-house-matches {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.internal-match-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.internal-match-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+}
+
+.internal-final-ranking {
+    margin-top: 12px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.internal-final-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin-bottom: 6px;
+}
+
+.internal-final-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.internal-final-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    font-weight: 700;
+    color: var(--text-main);
+    border-bottom: 1px dashed var(--border-color);
+}
+
+.internal-final-list li:last-child {
+    border-bottom: none;
+}
+
+.internal-final-list li.is-pending .final-team {
+    font-weight: 400;
+    font-style: italic;
+    color: var(--text-muted);
+}
+
+.internal-final-list li.is-champion .final-team {
+    color: #b45309;
+}
+
+.final-place {
+    flex-shrink: 0;
+    width: 26px;
+    text-align: center;
+    font-weight: 800;
+    color: var(--text-muted);
+}

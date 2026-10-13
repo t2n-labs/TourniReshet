@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.51">
+    <link rel="stylesheet" href="./style.css?v=4.52">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -590,7 +590,7 @@ git push -u origin main</pre>
                     <small id="wizardNameDateHint" class="name-date-hint">התאריך של היום מתווסף אוטומטית לסוף השם. אפשר לשנות אותו אחר כך בכפתור "שנה שם או תאריך".</small>
                 </div>
 
-                <!-- שלב 2: סוג המבנה (3 אפשרויות לבחירה) -->
+                <!-- שלב 2: סוג המבנה (4 אפשרויות לבחירה) -->
                 <div class="login-field">
                     <label>🎯 בחר שיטת מבנה לטורניר:</label>
                     <div class="wizard-format-options">
@@ -599,6 +599,13 @@ git push -u origin main</pre>
                             <div class="wizard-card-icon">⚽+🌳</div>
                             <div class="wizard-card-title">בתים + פלייאוף</div>
                             <div class="wizard-card-desc">שלב בתים Round-Robin ולאחריו הצלבות ונוקאאוט</div>
+                        </label>
+
+                        <label class="wizard-format-card" id="cardFormatInternal">
+                            <input type="radio" name="wizardFormat" value="groups_internal_playoff" onchange="app.onWizardFormatChange()">
+                            <div class="wizard-card-icon">⚽+🥇</div>
+                            <div class="wizard-card-title">בתים + פלייאוף פנימי</div>
+                            <div class="wizard-card-desc">בתים של 4 או 6 קבוצות; בסיום, בכל בית: 1 נגד 2, 3 נגד 4, 5 נגד 6 לקביעת המיקום הסופי</div>
                         </label>
 
                         <label class="wizard-format-card" id="cardFormatGroupsOnly">
@@ -748,7 +755,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.51"></script>
+    <script src="./app.js?v=4.52"></script>
 </body>
 </html>
 

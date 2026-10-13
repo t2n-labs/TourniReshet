@@ -118,6 +118,19 @@ When writing code or introducing features:
 
 ---
 
+## 🥇 Internal Playoff Format (v4.52)
+- Fourth tournament format, `format: "groups_internal_playoff"` ("בתים + פלייאוף פנימי"). Houses must have 4 or 6 teams; any number of houses.
+- After the houses stage is locked (`seedPlayoffs`), every house plays placement games by its standings: 1 v 2, 3 v 4, and 5 v 6 with six teams. There is no bracket and no cross-house games.
+- The games live in `playoffMatches.placement[]` (ids `pl_<houseLetter>_<n>`, with `groupId` and `placeFrom`). They reuse the playoff cards and score handlers (`findPlayoffMatch` resolves `pl_` ids). The winner takes place `placeFrom`, the loser `placeFrom + 1` (`getInternalFinalRanking`).
+- Use `hasPlayoffStage()` / `isInternalPlayoff()` / `isPlayoffComplete()` instead of comparing `format` to `"groups_and_playoff"` directly.
+
+## 🚦 Staging Workflow
+- Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
+- Merge `tomer` into `main` (production) only after the owner approves the change on staging.
+- Staging uses the production Firebase database: test with throwaway tournaments.
+
+---
+
 ## 🗓️ Dates
 - Only a tournament has a date (`eventDate`, shown in its name). Games have no date, time or location: the per-game scheduling feature was removed in v4.51, and `loadTournamentData` deletes any `scheduledAt` / `location` left on games by older versions (they disappear from Firestore on the next save).
 

@@ -955,7 +955,7 @@ class TournamentApp {
         if (!modal || !list || modal.classList.contains('hidden')) return;
 
         const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-        const formatLabel = (t) => (t.format === 'knockout_only') ? 'נוקאאוט בלבד' : ((t.format === 'groups_only') ? 'בתים בלבד' : 'בתים + פלייאוף');
+        const formatLabel = (t) => this.formatLabel(t.format);
 
         list.innerHTML = this.tournaments.map(t => `
             <button type="button" class="login-choice-btn ${t.isArchived ? 'is-archived' : ''}" onclick="app.chooseAdminTournament('${t.id}')">
@@ -1051,7 +1051,7 @@ class TournamentApp {
 
     isGroupStageLocked() {
         if (this.isCurrentTournamentClosed()) return true;
-        if (this.format === 'groups_and_playoff' && this.playoffSeeds && this.playoffSeeds.length > 0) {
+        if (this.hasPlayoffStage() && this.playoffSeeds && this.playoffSeeds.length > 0) {
             return true;
         }
         return false;
@@ -1815,6 +1815,8 @@ class TournamentApp {
         this.numGroups = parseInt(tData.numGroups, 10) || (tData.groups ? Object.keys(tData.groups).length : 2);
         this.teamsPerGroup = parseInt(tData.teamsPerGroup, 10) || 4;
         this.playoffSize = parseInt(tData.playoffSize, 10) || (this.numGroups * this.teamsPerGroup >= 8 ? 8 : 4);
+        // בפלייאוף פנימי אין עץ: כל הקבוצות בבית משחקות משחק מיקום אחד
+        if (this.isInternalPlayoff()) this.playoffSize = 0;
         // מספר המערכות בכל משחק בשלב הבתים: 1 או 3 (הטוב משלוש). טורניר ישן ללא ההגדרה משוחק במערכה אחת.
         this.setsPerMatch = (parseInt(tData.setsPerMatch, 10) === 3) ? 3 : 1;
         // לוח המשחקים נוצר רק בלחיצה על "ייצר לוח משחקים" לאחר הזנת כל שמות הקבוצות.
@@ -1926,7 +1928,7 @@ class TournamentApp {
                 this.matches = tData.matches || [];
                 this.standings = tData.standings || {};
                 this.playoffSeeds = tData.playoffSeeds || [];
-                this.playoffMatches = tData.playoffMatches || this.createEmptyPlayoffMatches(this.playoffSize);
+                this.playoffMatches = tData.playoffMatches || (this.isInternalPlayoff() ? null : this.createEmptyPlayoffMatches(this.playoffSize));
                 this.renderTeamInputs();
                 this.renderMatches();
                 this.renderStandings();
@@ -2190,6 +2192,21 @@ class TournamentApp {
         const playoffSizeGroup = document.getElementById('wizardPlayoffSizeGroup');
 
         if (cardGroups) cardGroups.classList.toggle('active', format === 'groups_and_playoff');
+        document.getElementById('cardFormatInternal')?.classList.toggle('active', format === 'groups_internal_playoff');
+
+        // פלייאוף פנימי דורש בתים של 4 או 6 קבוצות (זוגות למשחקי המיקום); בשאר המבנים כל הכמויות זמינות
+        const teamsPerGroupSelect = document.getElementById('wizardTeamsPerGroup');
+        if (teamsPerGroupSelect) {
+            // בעריכה המבנה נעול ממילא, ולכן כל הערכים נשארים זמינים להצגה
+            const internalOnly = format === 'groups_internal_playoff' && this.wizardMode !== 'edit';
+            Array.from(teamsPerGroupSelect.options).forEach(opt => {
+                if (opt.value === '') return; // שורת "בחר..."
+                const blocked = internalOnly && opt.value !== '4' && opt.value !== '6';
+                opt.disabled = blocked;
+                opt.hidden = blocked;
+            });
+            if (internalOnly && !['', '4', '6'].includes(teamsPerGroupSelect.value)) teamsPerGroupSelect.value = '';
+        }
         if (cardGroupsOnly) cardGroupsOnly.classList.toggle('active', format === 'groups_only');
         if (cardKnockout) cardKnockout.classList.toggle('active', format === 'knockout_only');
 
@@ -2200,7 +2217,8 @@ class TournamentApp {
         } else if (format === 'knockout_only') {
             if (boxGroups) boxGroups.classList.add('hidden');
             if (boxKnockout) boxKnockout.classList.remove('hidden');
-        } else if (format === 'groups_only') {
+        } else if (format === 'groups_only' || format === 'groups_internal_playoff') {
+            // בלי עץ פלייאוף: אין מה לבחור בגודל העץ
             if (boxGroups) boxGroups.classList.remove('hidden');
             if (boxKnockout) boxKnockout.classList.add('hidden');
             if (playoffSizeGroup) playoffSizeGroup.classList.add('hidden');
@@ -2235,6 +2253,17 @@ class TournamentApp {
                 📊 <strong>סיכום מבנה הטורניר:</strong> <bdi>${totalTeams}</bdi> קבוצות (<bdi>${numGroups}</bdi> בתים של <bdi>${teamsPerGroup}</bdi> קבוצות) | 
                 ⚽ <bdi>${totalGroupMatches}</bdi> משחקים (ללא פלייאוף) | 
                 🥇 <bdi>${pointsWin}</bdi> נק' לניצחון, 🥈 <bdi>${pointsLoss}</bdi> נק' להפסד (הדירוג והאלופה נקבעים לפי נקודות והפרש שערים)
+            `;
+        } else if (format === 'groups_internal_playoff') {
+            const numGroups = parseInt(document.getElementById('wizardNumGroups')?.value || '2', 10);
+            const teamsPerGroup = parseInt(document.getElementById('wizardTeamsPerGroup')?.value || '4', 10);
+            const totalGroupMatches = numGroups * (teamsPerGroup * (teamsPerGroup - 1)) / 2;
+            const placementMatches = numGroups * Math.floor(teamsPerGroup / 2);
+
+            summaryBox.innerHTML = `
+                📊 <strong>סיכום מבנה הטורניר:</strong> <bdi>${numGroups * teamsPerGroup}</bdi> קבוצות (<bdi>${numGroups}</bdi> בתים של <bdi>${teamsPerGroup}</bdi> קבוצות) |
+                ⚽ <bdi>${totalGroupMatches}</bdi> משחקים בשלב הבתים |
+                🥇 <bdi>${placementMatches}</bdi> משחקי מיקום בפלייאוף הפנימי (בכל בית: 1 נגד 2, 3 נגד 4${teamsPerGroup === 6 ? ', 5 נגד 6' : ''})
             `;
         } else if (format === 'groups_and_playoff') {
             const numGroups = parseInt(document.getElementById('wizardNumGroups')?.value || '3', 10);
@@ -2339,7 +2368,12 @@ class TournamentApp {
             numGroups = parseInt(document.getElementById('wizardNumGroups')?.value || '3', 10);
             teamsPerGroup = parseInt(document.getElementById('wizardTeamsPerGroup')?.value || '5', 10);
             totalTeams = numGroups * teamsPerGroup;
-            playoffSize = (format === 'groups_only') ? 0 : parseInt(document.getElementById('wizardPlayoffSize')?.value || '8', 10);
+            playoffSize = (format === 'groups_and_playoff') ? parseInt(document.getElementById('wizardPlayoffSize')?.value || '8', 10) : 0;
+
+            if (format === 'groups_internal_playoff' && teamsPerGroup !== 4 && teamsPerGroup !== 6) {
+                this.showAlert("בפלייאוף פנימי כל בית חייב לכלול 4 או 6 קבוצות.", "error");
+                return;
+            }
 
             // בדיקת תקינות: מספר העולות לפלייאוף לא יעלה על כמות הקבוצות הכוללת בבתים!
             if (format === 'groups_and_playoff' && playoffSize > totalTeams) {
@@ -2727,7 +2761,7 @@ class TournamentApp {
         if (this.format === 'knockout_only') return this.hasPlayoffChampion();
         const housesDone = Array.isArray(this.matches) && this.matches.length > 0 && this.matches.every(decided);
         if (this.format === 'groups_only') return housesDone;
-        return housesDone && this.hasPlayoffChampion();
+        return housesDone && this.isPlayoffComplete();
     }
 
     // "סיים טורניר" (כל המנהלים) מוצג רק כשכל התוצאות הוזנו והטורניר עדיין פתוח.
@@ -2912,6 +2946,8 @@ class TournamentApp {
                             ? `<span style="background:#fee2e2; color:#991b1b; padding:2px 6px; border-radius:8px; font-size:0.78rem; font-weight:700;">⚔️ נוקאאוט</span>`
                             : (t.format === 'groups_only')
                             ? `<span style="background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:8px; font-size:0.78rem; font-weight:700;">⚽ בתים בלבד</span>`
+                            : (t.format === 'groups_internal_playoff')
+                            ? `<span style="background:#dcfce7; color:#166534; padding:2px 6px; border-radius:8px; font-size:0.78rem; font-weight:700;">⚽ בתים + פלייאוף פנימי</span>`
                             : `<span style="background:#dbeafe; color:#1e40af; padding:2px 6px; border-radius:8px; font-size:0.78rem; font-weight:700;">⚽ בתים + פלייאוף</span>`;
 
                         const statusBadge = t.isArchived
@@ -3182,9 +3218,37 @@ class TournamentApp {
         return this.format === 'knockout_only' ? 'playoffs' : 'group-stage';
     }
 
-    // שלב הבתים ננעל והפלייאוף שובץ (רלוונטי רק לטורניר של בתים + פלייאוף)
+    // פלייאוף פנימי: בסיום שלב הבתים כל בית משחק משחקי מיקום בתוך עצמו (1 נגד 2, 3 נגד 4, 5 נגד 6)
+    isInternalPlayoff(format = this.format) {
+        return format === 'groups_internal_playoff';
+    }
+
+    // מבנים שבהם אחרי שלב הבתים יש שלב פלייאוף (עץ נוקאאוט או משחקי מיקום בתוך הבית)
+    hasPlayoffStage(format = this.format) {
+        return format === 'groups_and_playoff' || format === 'groups_internal_playoff';
+    }
+
+    formatLabel(format) {
+        if (format === 'knockout_only') return 'נוקאאוט בלבד';
+        if (format === 'groups_only') return 'בתים בלבד';
+        if (format === 'groups_internal_playoff') return 'בתים + פלייאוף פנימי';
+        return 'בתים + פלייאוף';
+    }
+
+    getPlacementMatches() {
+        return (this.playoffMatches && Array.isArray(this.playoffMatches.placement)) ? this.playoffMatches.placement : [];
+    }
+
+    // שלב הפלייאוף הוכרע: יש אלופה בעץ, או שכל משחקי המיקום בפלייאוף הפנימי הוכרעו
+    isPlayoffComplete() {
+        if (!this.isInternalPlayoff()) return this.hasPlayoffChampion();
+        const placement = this.getPlacementMatches();
+        return placement.length > 0 && placement.every(m => (m.winner === 'team1' || m.winner === 'team2') && !this.isTiedScore(m));
+    }
+
+    // שלב הבתים ננעל והפלייאוף שובץ (רלוונטי רק לטורניר שיש בו שלב פלייאוף אחרי הבתים)
     isPlayoffOpen() {
-        return this.format === 'groups_and_playoff' && !!this.playoffSeeds && this.playoffSeeds.length > 0;
+        return this.hasPlayoffStage() && !!this.playoffSeeds && this.playoffSeeds.length > 0;
     }
 
     createGameBoard() {
@@ -3307,7 +3371,7 @@ class TournamentApp {
         };
         (this.playoffSeeds || []).forEach(fixTeam);
         const pm = this.playoffMatches || {};
-        [...(pm.r16 || []), ...(pm.qf || []), ...(pm.sf || []), pm.final].forEach(m => { if (m) { fixTeam(m.team1); fixTeam(m.team2); } });
+        [...(pm.r16 || []), ...(pm.qf || []), ...(pm.sf || []), ...(pm.placement || []), pm.final].forEach(m => { if (m) { fixTeam(m.team1); fixTeam(m.team2); } });
 
         // סינון שנבחר לפי השם הישן ממשיך לעקוב אחרי אותה קבוצה
         if (this.currentTeamFilter === oldName) {
@@ -3319,7 +3383,7 @@ class TournamentApp {
             this.calculateStandings();
             this.renderMatches();
         }
-        if (document.querySelector('#playoff-bracket-container .bracket-tree')) this.renderPlayoffBracket();
+        if (document.querySelector('#playoff-bracket-container .bracket-tree, #playoff-bracket-container .internal-playoff')) this.renderPlayoffBracket();
         this.saveActiveTournamentData();
         this.showAlert(`שם הקבוצה שונה מ"${oldName}" ל"${trimmed}".`, "success");
     }
@@ -3500,7 +3564,7 @@ class TournamentApp {
         this.saveActiveTournamentData();
 
         const seedBtns = document.querySelectorAll('.btn-seed-playoffs-action');
-        if (this.format === 'groups_and_playoff') {
+        if (this.hasPlayoffStage()) {
             seedBtns.forEach(btn => btn.classList.remove('hidden'));
         } else {
             seedBtns.forEach(btn => btn.classList.add('hidden'));
@@ -4118,6 +4182,10 @@ class TournamentApp {
                 legendContainer.innerHTML = `
                     <span class="legend-item"><span class="legend-color" style="background:#fde68a; border:1px solid #eab308;"></span> 🏆 מקום 1 (אלופת הבית המובילה בדירוג)</span>
                 `;
+            } else if (this.isInternalPlayoff()) {
+                legendContainer.innerHTML = `
+                    <span class="legend-item">🥇 בסיום שלב הבתים כל בית משחק משחקי מיקום: 1 נגד 2, 3 נגד 4${this.teamsPerGroup >= 6 ? ', 5 נגד 6' : ''}</span>
+                `;
             } else if (this.numGroups === 2) {
                 legendContainer.innerHTML = `
                     <span class="legend-item"><span class="legend-color" style="background:#bbf7d0; border:1px solid #22c55e;"></span> עולה ישירה לפלייאוף (מקומות 1-2)</span>
@@ -4192,6 +4260,8 @@ class TournamentApp {
                                             rankClass = 'rank-champion';
                                             rankDisplay = `🏆 1`;
                                         }
+                                    } else if (this.isInternalPlayoff()) {
+                                        // כל הקבוצות ממשיכות למשחק מיקום, ולכן אין צבעי "עולה" / "מועמדת"
                                     } else if (this.numGroups === 2) {
                                         if (t.groupRank <= 2) {
                                             rowClass = 'row-direct-qualify';
@@ -4291,6 +4361,40 @@ class TournamentApp {
             'Group A': "בית א'", 'Group B': "בית ב'", 'Group C': "בית ג'",
             'Group D': "בית ד'", 'Group E': "בית ה'", 'Group F': "בית ו'"
         };
+
+        // פלייאוף פנימי: בכל בית משחקי מיקום לפי דירוג שלב הבתים - 1 נגד 2, 3 נגד 4, 5 נגד 6
+        if (this.isInternalPlayoff()) {
+            const placement = [];
+            const seeds = [];
+            grpKeys.forEach(k => {
+                const ranked = (this.standings[k] || []).map((t, idx) => ({
+                    ...t,
+                    seed: idx + 1,
+                    origin: `מקום ${idx + 1} ${groupHebrew[k] || k}`
+                }));
+                seeds.push(...ranked);
+                for (let i = 0; i + 1 < ranked.length; i += 2) {
+                    placement.push({
+                        id: `pl_${k.replace('Group ', '')}_${i / 2 + 1}`,
+                        groupId: k,
+                        placeFrom: i + 1,
+                        roundName: i === 0 ? `🏆 גמר הבית (מקומות 1-2)` : `מקומות ${i + 1}-${i + 2}`,
+                        seed1: i + 1, seed2: i + 2,
+                        team1: ranked[i], team2: ranked[i + 1],
+                        score1: null, score2: null, winner: null
+                    });
+                }
+            });
+            this.playoffSeeds = seeds;
+            this.playoffMatches = { placement };
+
+            this.renderMatches();
+            this.renderPlayoffBracket();
+            this.saveActiveTournamentData();
+            this.switchTab('playoffs');
+            this.showAlert(`שלב הבתים ננעל בהצלחה! שובצו ${placement.length} משחקי מיקום בפלייאוף הפנימי.`, "success");
+            return;
+        }
 
         const sortPerformance = (a, b) => this.compareTeamsForRanking(a, b);
 
@@ -4522,6 +4626,32 @@ class TournamentApp {
         const isMobile = this.mobileQuery.matches;
         const renderTreeCard = isMobile ? renderCompactCard : renderPlayoffCard;
 
+        const headerTitle = document.getElementById('playoff-header-title');
+        const headerSubtitle = document.getElementById('playoff-header-subtitle');
+        if (headerTitle) headerTitle.textContent = this.isInternalPlayoff() ? '🥇 פלייאוף פנימי - משחקי מיקום' : '🌳 עץ פלייאוף נוקאאוט';
+        if (headerSubtitle) headerSubtitle.textContent = this.isInternalPlayoff()
+            ? 'בכל בית הקבוצות משחקות לפי דירוג שלב הבתים: 1 נגד 2, 3 נגד 4, 5 נגד 6. תוצאות המשחקים קובעות את המיקום הסופי בבית.'
+            : 'שיטת ההצלבות ועץ הנוקאאוט. המנצחות מעפילות אוטומטית לשלב הבא!';
+
+        // פלייאוף פנימי: אין עץ. כל בית מוצג בנפרד עם משחקי המיקום שלו והדירוג הסופי שנקבע מהם
+        if (this.isInternalPlayoff()) {
+            const openPlacement = (isMobile && this.openPlayoffMatchId) ? this.findPlayoffMatch(this.openPlayoffMatchId) : null;
+            container.innerHTML = `
+                ${(isMobile && !isViewer) ? '<p class="bracket-mobile-hint">👆 הקש על משחק לצפייה בפרטים המלאים ולהזנת תוצאה</p>' : ''}
+                ${this.renderInternalPlayoffHtml(renderTreeCard)}
+                ${openPlacement ? `
+                    <div class="bracket-editor-backdrop" onclick="if (event.target === this) app.closePlayoffMatch()">
+                        <div class="bracket-editor">${renderPlayoffCard(openPlacement, openPlacement.placeFrom === 1)}</div>
+                    </div>` : ''}
+            `;
+            this.updateArchiveButtonUI();
+            this.updateBoardStateUI();
+            if (focusedInputId && document.activeElement?.id !== focusedInputId) {
+                this.refocusScoreInput(document.getElementById(focusedInputId));
+            }
+            return;
+        }
+
         let championBannerHtml = '';
         if (final && final.winner) {
             const championTeam = final.winner === 'team1' ? final.team1 : final.team2;
@@ -4610,6 +4740,63 @@ class TournamentApp {
         }
     }
 
+    // הדירוג הסופי בבית: מנצחת משחק המיקום מקבלת את המקום הגבוה והמפסידה את המקום שאחריו
+    getInternalFinalRanking(groupKey) {
+        const ranking = [];
+        this.getPlacementMatches().filter(m => m.groupId === groupKey).forEach(m => {
+            const decided = (m.winner === 'team1' || m.winner === 'team2') && !this.isTiedScore(m);
+            const winner = decided ? (m.winner === 'team1' ? m.team1 : m.team2) : null;
+            const loser = decided ? (m.winner === 'team1' ? m.team2 : m.team1) : null;
+            ranking.push({ place: m.placeFrom, team: winner });
+            ranking.push({ place: m.placeFrom + 1, team: loser });
+        });
+        return ranking.sort((a, b) => a.place - b.place);
+    }
+
+    renderInternalPlayoffHtml(renderCard) {
+        const groupHebrew = {
+            'Group A': "בית א'", 'Group B': "בית ב'", 'Group C': "בית ג'",
+            'Group D': "בית ד'", 'Group E': "בית ה'", 'Group F': "בית ו'"
+        };
+        const placement = this.getPlacementMatches();
+        const groupKeys = [...new Set(placement.map(m => m.groupId))];
+        if (groupKeys.length === 0) {
+            return '<p class="placeholder-text">הפלייאוף הפנימי ייפתח לאחר נעילת שלב הבתים.</p>';
+        }
+
+        return `
+            <div class="internal-playoff">
+                ${groupKeys.map(k => {
+                    const ranking = this.getInternalFinalRanking(k);
+                    return `
+                        <section class="internal-house">
+                            <h3 class="internal-house-title">${groupHebrew[k] || k}</h3>
+                            <div class="internal-house-matches">
+                                ${placement.filter(m => m.groupId === k).map(m => `
+                                    <div class="internal-match-slot">
+                                        ${this.mobileQuery.matches ? `<div class="internal-match-label">${m.roundName}</div>` : ''}
+                                        ${renderCard(m, m.placeFrom === 1)}
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="internal-final-ranking">
+                                <div class="internal-final-title">📋 דירוג סופי בבית</div>
+                                <ol class="internal-final-list">
+                                    ${ranking.map(r => `
+                                        <li class="${r.place === 1 && r.team ? 'is-champion' : ''} ${r.team ? '' : 'is-pending'}">
+                                            <span class="final-place">${r.place === 1 && r.team ? '🏆' : r.place}</span>
+                                            <span class="final-team">${r.team ? r.team.teamName : 'טרם נקבע'}</span>
+                                        </li>
+                                    `).join('')}
+                                </ol>
+                            </div>
+                        </section>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+
     toggleEnlargedRound(roundKey) {
         this.enlargedRoundKey = (this.enlargedRoundKey === roundKey) ? null : roundKey;
         this.renderPlayoffBracket();
@@ -4662,6 +4849,7 @@ class TournamentApp {
         if (matchId.startsWith('qf')) return this.playoffMatches.qf?.find(m => m.id === matchId);
         if (matchId.startsWith('sf')) return this.playoffMatches.sf?.find(m => m.id === matchId);
         if (matchId === 'final') return this.playoffMatches.final;
+        if (matchId.startsWith('pl_')) return this.playoffMatches.placement?.find(m => m.id === matchId) || null;
         return null;
     }
 
@@ -4937,6 +5125,7 @@ class TournamentApp {
         if (this.playoffMatches.r16) simulateRound(this.playoffMatches.r16);
         if (this.playoffMatches.qf) simulateRound(this.playoffMatches.qf);
         if (this.playoffMatches.sf) simulateRound(this.playoffMatches.sf);
+        simulateRound(this.getPlacementMatches());
 
         const final = this.playoffMatches.final;
         if (final && final.team1 && final.team2) {
@@ -4945,7 +5134,7 @@ class TournamentApp {
 
         this.renderPlayoffBracket();
         this.saveActiveTournamentData();
-        this.showAlert("כל משחקי הפלייאוף סומלצו עד להכתרת האלופה!", "success");
+        this.showAlert(this.isInternalPlayoff() ? "כל משחקי המיקום בפלייאוף הפנימי סומלצו!" : "כל משחקי הפלייאוף סומלצו עד להכתרת האלופה!", "success");
     }
 
     resetPlayoffs() {
@@ -5000,8 +5189,7 @@ class TournamentApp {
         rows.push([escapeCSV("🏆 טורנירשת - נתוני טורניר וטבלאות דירוג")]);
         const currentTourney = this.tournaments.find(t => t.id === this.activeTournamentId);
         rows.push([escapeCSV("שם טורניר"), escapeCSV(currentTourney?.name || "טורניר פעיל")]);
-        const formatLabel = (this.format === 'knockout_only') ? 'נוקאאוט בלבד' :
-                            (this.format === 'groups_only') ? 'שלב בתים בלבד' : 'בתים + פלייאוף';
+        const formatLabel = this.formatLabel(this.format);
         rows.push([escapeCSV("מבנה טורניר"), escapeCSV(formatLabel)]);
         rows.push([escapeCSV("תאריך הפקה"), escapeCSV(new Date().toLocaleString('he-IL'))]);
         rows.push([]);
@@ -5094,6 +5282,26 @@ class TournamentApp {
                     });
                 }
             });
+
+            // פלייאוף פנימי: משחקי המיקום בכל בית, ואחריהם הדירוג הסופי שנקבע מהם
+            const placement = this.getPlacementMatches();
+            if (placement.length > 0) {
+                const houseLabels = { 'Group A': "בית א'", 'Group B': "בית ב'", 'Group C': "בית ג'", 'Group D': "בית ד'", 'Group E': "בית ה'", 'Group F': "בית ו'" };
+                placement.forEach(m => {
+                    const s1 = m.score1 !== null ? m.score1 : "";
+                    const s2 = m.score2 !== null ? m.score2 : "";
+                    const win = m.winner ? (m.winner === 'team1' ? m.team1?.teamName : m.team2?.teamName) : "ממתין להכרעה";
+                    rows.push([escapeCSV(houseLabels[m.groupId] || m.groupId), escapeCSV(`מקומות ${m.placeFrom}-${m.placeFrom + 1}`), escapeCSV(m.team1?.teamName || "ממתין"), escapeCSV(s1), escapeCSV(s2), escapeCSV(m.team2?.teamName || "ממתין"), escapeCSV(win)]);
+                });
+                rows.push([]);
+                rows.push([escapeCSV("--- דירוג סופי בכל בית ---")]);
+                rows.push([escapeCSV("בית"), escapeCSV("מקום סופי"), escapeCSV("קבוצה")]);
+                [...new Set(placement.map(m => m.groupId))].forEach(k => {
+                    this.getInternalFinalRanking(k).forEach(r => {
+                        rows.push([escapeCSV(houseLabels[k] || k), escapeCSV(r.place), escapeCSV(r.team ? r.team.teamName : "טרם נקבע")]);
+                    });
+                });
+            }
 
             if (this.playoffMatches.final) {
                 const fn = this.playoffMatches.final;
@@ -5297,7 +5505,7 @@ class TournamentApp {
 
         const currentId = this.guestPreferences?.tourneyId || this.activeTournamentId;
         select.innerHTML = this.getViewerTournaments().map(t => {
-            const formatLabel = (t.format === 'knockout_only') ? 'נוקאאוט' : ((t.format === 'groups_only') ? 'בתים בלבד' : 'בתים+פלייאוף');
+            const formatLabel = this.formatLabel(t.format);
             return `
                 <option value="${t.id}" ${t.id === currentId ? 'selected' : ''}>
                     ${t.name} (${formatLabel}) ${t.isArchived ? '[ארכיון]' : ''}
