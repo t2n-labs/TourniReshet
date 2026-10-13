@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.56">
+    <link rel="stylesheet" href="./style.css?v=4.57">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -224,11 +224,6 @@
                 <div class="card">
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
                         <h2 id="setup-header-title" style="margin: 0;">הזנת קבוצות הטורניר</h2>
-                        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                            <button type="button" id="setupDeleteTournamentBtn" class="tournament-view-only btn-danger-delete btn-sm can-delete-only" onclick="app.deleteActiveTournament()" title="מחיקת הטורניר הנוכחי לצמיתות מהמערכת (Owner בלבד)">
-                                🗑️ מחק טורניר
-                            </button>
-                        </div>
                     </div>
                     <p id="setup-header-subtitle" class="role-notice admin-editable">מיועד ל-Admin/Owner בלבד. הזן או עדכן את שמות הקבוצות:</p>
                     
@@ -808,7 +803,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.56"></script>
+    <script src="./app.js?v=4.57"></script>
 </body>
 </html>
 

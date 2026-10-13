@@ -126,7 +126,7 @@ When writing code or introducing features:
 
 ## 🏐 Sets Per Game (v4.54)
 - `setsPerMatch` is 1, 2 or 3 and applies to every game in the tournament (houses, knockout, internal playoff). `isMultiSet()` is true for 2 and 3.
-- Two sets: 2:0 wins. At 1:1 the winner is the team with more total points over both sets (`summarizeSets` → `decidedByPoints`). Equal totals (`pointsTie`) leave the game undecided - there are no ties - and the card shows a note asking for a correction.
+- Two sets: 2:0 wins. At 1:1 the winner is the team with more total points over both sets (`summarizeSets` → `decidedByPoints`). If the totals are equal (same margin in both sets, e.g. 21:18 and 19:22), the team that scored more points in the set it won wins (`decidedByHighSet`, 22 beats 21). Only mirrored sets (21:18 and 18:21) are a draw (`pointsTie`): the game stays undecided and play continues.
 - `score1`/`score2` hold sets won, so a points-decided game is stored as 1:1 with a `winner`; `isTiedScore` returns false for it.
 
 ## 📜 Audit Trail & Guest Statistics (v4.55)

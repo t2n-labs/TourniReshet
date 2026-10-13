@@ -4029,16 +4029,26 @@ class TournamentApp {
         info.forEach((i, idx) => {
             if (i.counts) { p1 += Number(sets[idx].s1); p2 += Number(sets[idx].s2); }
         });
-        let decidedByPoints = false, pointsTie = false;
+        // שוויון גם בסך הנקודות (כלומר אותו הפרש בשתי המערכות, למשל 21:18 ו-19:22): מנצחת הקבוצה שצברה
+        // יותר נקודות במערכה שבה ניצחה (22 מול 21). רק מערכות זהות (21:18 ו-18:21) הן תיקו, והמשחק נמשך.
+        let decidedByPoints = false, decidedByHighSet = false, pointsTie = false;
+        let high1 = 0, high2 = 0;
         if (sets.length === 2 && w1 === 1 && w2 === 1) {
+            info.forEach((i, idx) => {
+                if (i.winner === 1) high1 = Number(sets[idx].s1);
+                if (i.winner === 2) high2 = Number(sets[idx].s2);
+            });
             if (p1 !== p2) {
                 winner = p1 > p2 ? 'team1' : 'team2';
                 decidedByPoints = true;
+            } else if (high1 !== high2) {
+                winner = high1 > high2 ? 'team1' : 'team2';
+                decidedByHighSet = true;
             } else {
                 pointsTie = true;
             }
         }
-        return { w1, w2, info, any: info.some(i => i.counts), winner, p1, p2, decidedByPoints, pointsTie };
+        return { w1, w2, info, any: info.some(i => i.counts), winner, p1, p2, high1, high2, decidedByPoints, decidedByHighSet, pointsTie };
     }
 
     // הסבר מתחת לכרטיס כשמשחק של שתי מערכות הסתיים 1:1: מי ניצחה בסך הנקודות, או שנדרש תיקון
@@ -4047,15 +4057,19 @@ class TournamentApp {
             const winnerName = summary.winner === 'team1' ? (m.team1Name || m.team1?.teamName) : (m.team2Name || m.team2?.teamName);
             return `<div class="sets-decision-note">⚖️ 1:1 במערכות - ${winnerName} ניצחה בסך הנקודות (<bdi>${Math.max(summary.p1, summary.p2)}:${Math.min(summary.p1, summary.p2)}</bdi>)</div>`;
         }
+        if (summary.decidedByHighSet) {
+            const winnerName = summary.winner === 'team1' ? (m.team1Name || m.team1?.teamName) : (m.team2Name || m.team2?.teamName);
+            return `<div class="sets-decision-note">⚖️ 1:1 במערכות ושוויון בסך הנקודות (<bdi>${summary.p1}:${summary.p2}</bdi>) - ${winnerName} ניצחה עם יותר נקודות במערכה שלה (<bdi>${Math.max(summary.high1, summary.high2)}</bdi> מול <bdi>${Math.min(summary.high1, summary.high2)}</bdi>)</div>`;
+        }
         if (summary.pointsTie) {
-            return `<div class="sets-decision-note is-tie">⚠️ 1:1 במערכות ושוויון גם בסך הנקודות (<bdi>${summary.p1}:${summary.p2}</bdi>) - המשחק לא הוכרע</div>`;
+            return `<div class="sets-decision-note is-tie">⚠️ תיקו: 1:1 במערכות עם תוצאות זהות (<bdi>${summary.p1}:${summary.p2}</bdi> בסך הנקודות) - המשחק נמשך עד להכרעה</div>`;
         }
         return '';
     }
 
     alertIfPointsTie(match) {
         if (match && this.summarizeSets(match).pointsTie) {
-            this.showAlert("⚠️ אין תיקו בכדורשת: המשחק הסתיים 1:1 במערכות ובשוויון גם בסך הנקודות. יש לתקן את התוצאה כך שתהיה מנצחת.", "warning");
+            this.showAlert("⚠️ תיקו: 1:1 במערכות עם תוצאות זהות בשתי המערכות. המשחק נמשך - יש לעדכן את התוצאה לאחר ההכרעה.", "warning");
             return true;
         }
         return false;
