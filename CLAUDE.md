@@ -135,6 +135,11 @@ When writing code or introducing features:
 - Viewers are not audited. `logGuestVisit` appends one document to `guest_visits` per viewer entry (tournament, time, random per-browser id) for the statistics tiles.
 - Both views live in the owner tab and are loaded only when `currentRole === "owner"`. Real protection needs the rules in `firestore.rules` to be published in the Firebase console - the client check alone does not stop someone reading the collection directly.
 
+## 👑 Owner Views (v4.56)
+- The owner has two separate views, switched by the header button `#headerOwnerDashboardBtn` (`toggleOwnerDashboard`): the tournament view (tournament selector, tournament buttons, tabs) and the system-management view (`#tab-users`, entered with `switchTab("users")`).
+- In the management view `body.owner-dashboard` hides everything marked `.tournament-view-only`, the tabs and the banners. Its sub-sections (`users`, `tournaments`, `audit`, `guests`) are `.dash-section[data-dash]` blocks switched by `showDashboardSection`; one is visible at a time and the `.dash-tabs` bar stays on screen.
+- Mark any new tournament-specific header control with `tournament-view-only`. `switchRole` resets `body.className`, so the state is kept in `this.ownerDashboardOpen` and re-applied by `applyOwnerDashboardState`.
+
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
 - Merge `tomer` into `main` (production) only after the owner approves the change on staging.

@@ -3460,3 +3460,71 @@ body.no-tournament #headerFinalizeTournamentBtn {
     font-size: 0.8rem;
     color: var(--text-muted);
 }
+
+/* ==========================================================================
+   שתי תצוגות לבעלים: ניהול הטורניר / ניהול המערכת
+   ========================================================================== */
+/* בניהול המערכת כל מה ששייך לטורניר עצמו מוסתר: בורר וכפתורי הטורניר, הטאבים והבאנרים */
+body.owner-dashboard .tournament-view-only,
+body.owner-dashboard nav.tabs,
+body.owner-dashboard #archiveBanner,
+body.owner-dashboard #finishedBanner,
+body.owner-dashboard #noTournamentState {
+    display: none !important;
+}
+
+/* ניהול המערכת זמין גם כשאין אף טורניר פעיל */
+body.owner-dashboard #tab-users {
+    display: block !important;
+}
+
+.dash-title {
+    margin: 0 0 12px;
+}
+
+/* הניווט הפנימי נשאר צמוד לראש המסך בזמן גלילה, כך שתמיד אפשר לעבור בין החלקים */
+.dash-tabs {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 18px;
+    background: #d9c9ae;
+    border: 1px solid #c4b08f;
+    border-radius: 14px;
+    flex-wrap: wrap;
+}
+
+.dash-tab-btn {
+    flex: 1 1 auto;
+    padding: 8px 16px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #6b5b45;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.18s ease;
+}
+
+.dash-tab-btn:hover {
+    color: #271e16;
+}
+
+.dash-tab-btn.active {
+    background: #fffdf8;
+    color: #271e16;
+    border-color: #c4b08f;
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.dash-critical {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}

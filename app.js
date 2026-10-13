@@ -991,6 +991,7 @@ class TournamentApp {
         this.finishPlayoffEditing();
         this.closeAdminTournamentChooser();
         this.logAudit('logout', 'יציאה מהמערכת');
+        this.ownerDashboardOpen = false;
         const loggedOutEmail = this.currentUser ? this.currentUser.email : '';
         this.currentUser = null;
         sessionStorage.removeItem('tournament_current_user');
@@ -1094,6 +1095,7 @@ class TournamentApp {
     switchRole(newRole) {
         this.currentRole = newRole;
         document.body.className = `role-${newRole}`;
+        this.applyOwnerDashboardState();
         this.updateEmptyStateUI();
 
         const isClosed = this.isCurrentTournamentClosed();
@@ -3372,12 +3374,57 @@ class TournamentApp {
             this.renderTeamNamesTab();
         }
 
+        // שתי תצוגות לבעלים: ניהול הטורניר (טאבים וכפתורי הטורניר) או ניהול המערכת (משתמשים, טורנירים, יומן, צופים)
+        this.ownerDashboardOpen = (tabId === 'users');
+        if (!this.ownerDashboardOpen) this.lastTournamentTab = tabId;
+        this.applyOwnerDashboardState();
+
         if (tabId === 'users') {
-            this.renderUsersManagement();
-            this.renderOwnerTournamentsList();
-            this.loadAuditTrail();
-            this.loadGuestStats();
+            let savedSection = null;
+            try { savedSection = sessionStorage.getItem('tournament_dashboard_section'); } catch (e) {}
+            this.showDashboardSection(savedSection || 'users');
         }
+    }
+
+    // מחיל את מצב התצוגה על הדף: במצב ניהול מערכת כל מה ששייך לטורניר מוסתר, והכפתור העליון מחזיר לטורניר
+    applyOwnerDashboardState() {
+        const open = !!this.ownerDashboardOpen && this.currentRole === 'owner';
+        document.body.classList.toggle('owner-dashboard', open);
+        const btn = document.getElementById('headerOwnerDashboardBtn');
+        if (btn) {
+            btn.textContent = open ? '↩️ חזרה לטורניר' : '👑 ניהול מערכת';
+            btn.setAttribute('aria-pressed', String(open));
+        }
+    }
+
+    toggleOwnerDashboard() {
+        if (this.currentRole !== 'owner') return;
+        if (this.ownerDashboardOpen) {
+            this.switchTab(this.lastTournamentTab || (this.boardCreated ? this.getMainViewTab() : 'setup'));
+        } else {
+            this.switchTab('users');
+        }
+    }
+
+    // בניהול המערכת מוצג חלק אחד בכל רגע; סרגל הניווט הפנימי נשאר תמיד גלוי
+    showDashboardSection(section) {
+        const sections = ['users', 'tournaments', 'audit', 'guests'];
+        if (!sections.includes(section)) section = 'users';
+        try { sessionStorage.setItem('tournament_dashboard_section', section); } catch (e) {}
+
+        document.querySelectorAll('#tab-users .dash-section').forEach(el => {
+            el.classList.toggle('hidden', el.dataset.dash !== section);
+        });
+        document.querySelectorAll('#tab-users .dash-tab-btn').forEach(btn => {
+            const active = btn.dataset.dashTab === section;
+            btn.classList.toggle('active', active);
+            btn.setAttribute('aria-selected', String(active));
+        });
+
+        if (section === 'users') this.renderUsersManagement();
+        if (section === 'tournaments') this.renderOwnerTournamentsList();
+        if (section === 'audit') this.loadAuditTrail();
+        if (section === 'guests') this.loadGuestStats();
     }
 
     renderTeamInputs() {

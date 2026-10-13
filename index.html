@@ -9,7 +9,7 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.55">
+    <link rel="stylesheet" href="./style.css?v=4.56">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -125,7 +125,7 @@
                 </div>
 
                 <!-- בחירת טורניר לצפייה (פעיל או ארכיון) למנהלים -->
-                <div class="tournament-select-wrap">
+                <div class="tournament-select-wrap tournament-view-only">
                     <label for="headerTournamentSelect">🏆 טורניר:</label>
                     <select id="headerTournamentSelect" onchange="app.switchTournament(this.value)">
                         <!-- דינמי דרך JS -->
@@ -133,43 +133,48 @@
                 </div>
 
                 <!-- כפתור אשף הקמת טורניר חדש -->
-                <button id="headerBtnNewTourney" class="btn-success btn-sm admin-editable btn-new-tourney" onclick="app.openTournamentWizard()" title="פתיחת אשף להקמת טורניר חדש">
+                <button id="headerBtnNewTourney" class="tournament-view-only btn-success btn-sm admin-editable btn-new-tourney" onclick="app.openTournamentWizard()" title="פתיחת אשף להקמת טורניר חדש">
                     ✨ טורניר חדש
                 </button>
 
                 <!-- כפתור סיום טורניר (כל המנהלים): מופיע רק לאחר שהוזנו תוצאות לכל המשחקים -->
-                <button type="button" id="headerFinalizeTournamentBtn" class="btn-success btn-sm admin-editable hidden" onclick="app.finalizeActiveTournament()" title="סיום הטורניר: התוצאות ננעלות לכולם, והטורניר נשאר גלוי לצופים">
+                <button type="button" id="headerFinalizeTournamentBtn" class="tournament-view-only btn-success btn-sm admin-editable hidden" onclick="app.finalizeActiveTournament()" title="סיום הטורניר: התוצאות ננעלות לכולם, והטורניר נשאר גלוי לצופים">
                     🏁 סיים טורניר
                 </button>
 
                 <!-- כפתור העברה לארכיון (בעלים ומפתחים בלבד): לאחר שהוזנו כל התוצאות או שהטורניר הסתיים -->
-                <button type="button" id="headerArchiveTournamentBtn" class="btn-secondary btn-sm admin-editable senior-only hidden" onclick="app.archiveActiveTournament()" title="העברת הטורניר שהסתיים לארכיון (קריאה בלבד)">
+                <button type="button" id="headerArchiveTournamentBtn" class="tournament-view-only btn-secondary btn-sm admin-editable senior-only hidden" onclick="app.archiveActiveTournament()" title="העברת הטורניר שהסתיים לארכיון (קריאה בלבד)">
                     📦 העבר לארכיון
                 </button>
 
                 <!-- כפתור מחיקת טורניר (Owner בלבד) -->
-                <button type="button" class="btn-danger-delete btn-sm can-delete-only" onclick="app.deleteActiveTournament()" title="מחיקת הטורניר הנוכחי לצמיתות (Owner בלבד)">
+                <button type="button" class="tournament-view-only btn-danger-delete btn-sm can-delete-only" onclick="app.deleteActiveTournament()" title="מחיקת הטורניר הנוכחי לצמיתות (Owner בלבד)">
                     🗑️ מחק טורניר
                 </button>
 
                 <!-- כפתורי ייצוא -->
-                <button class="btn-csv btn-sm admin-editable" onclick="app.exportToCSV()" title="הורד גיליון CSV ל-Excel">
+                <button class="tournament-view-only btn-csv btn-sm admin-editable" onclick="app.exportToCSV()" title="הורד גיליון CSV ל-Excel">
                     📊 Excel
                 </button>
 
                 <!-- כפתור שינוי שם ותאריך הטורניר (מנהלים בלבד) -->
-                <button type="button" id="headerTournamentDetailsBtn" class="btn-secondary btn-sm admin-editable" onclick="app.openTournamentDetailsModal()" title="שינוי שם הטורניר והתאריך שלו">
+                <button type="button" id="headerTournamentDetailsBtn" class="tournament-view-only btn-secondary btn-sm admin-editable" onclick="app.openTournamentDetailsModal()" title="שינוי שם הטורניר והתאריך שלו">
                     🏷️ שנה שם או תאריך
                 </button>
 
                 <!-- כפתור שינוי שמות קבוצות (מנהלים בלבד) - פותח טאב ייעודי -->
-                <button type="button" id="headerRenameTeamsBtn" class="btn-secondary btn-sm admin-editable" onclick="app.openTeamNamesTab()" title="שינוי שמות הקבוצות בטורניר">
+                <button type="button" id="headerRenameTeamsBtn" class="tournament-view-only btn-secondary btn-sm admin-editable" onclick="app.openTeamNamesTab()" title="שינוי שמות הקבוצות בטורניר">
                     ✏️ שינוי שמות קבוצות
                 </button>
 
                 <!-- כפתור התאמת צפייה אישית לאורח -->
                 <button class="btn-primary btn-sm guest-only-btn" onclick="app.openGuestPreferencesModal()" title="בחר קבוצה ובית למעקב אישי">
                     ⭐ מעקב אישי
+                </button>
+
+                <!-- מעבר בין שתי התצוגות של הבעלים: ניהול הטורניר וניהול המערכת (בעלים בלבד) -->
+                <button type="button" id="headerOwnerDashboardBtn" class="btn-primary btn-sm owner-only" onclick="app.toggleOwnerDashboard()" title="מעבר בין ניהול הטורניר לניהול המערכת">
+                    👑 ניהול מערכת
                 </button>
 
                 <!-- כפתור התנתקות -->
@@ -210,7 +215,6 @@
             <button class="tab-btn admin-editable active" onclick="app.switchTab('setup')">⚙️ הגדרת טורניר</button>
             <button class="tab-btn" onclick="app.switchTab('group-stage')">⚽ שלב הבתים</button>
             <button class="tab-btn" onclick="app.switchTab('playoffs')">🌳 שלב הפלייאוף</button>
-            <button class="tab-btn owner-only" onclick="app.switchTab('users')">👥 ניהול מערכת (Owner)</button>
         </nav>
 
 
@@ -221,7 +225,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px;">
                         <h2 id="setup-header-title" style="margin: 0;">הזנת קבוצות הטורניר</h2>
                         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                            <button type="button" id="setupDeleteTournamentBtn" class="btn-danger-delete btn-sm can-delete-only" onclick="app.deleteActiveTournament()" title="מחיקת הטורניר הנוכחי לצמיתות מהמערכת (Owner בלבד)">
+                            <button type="button" id="setupDeleteTournamentBtn" class="tournament-view-only btn-danger-delete btn-sm can-delete-only" onclick="app.deleteActiveTournament()" title="מחיקת הטורניר הנוכחי לצמיתות מהמערכת (Owner בלבד)">
                                 🗑️ מחק טורניר
                             </button>
                         </div>
@@ -362,11 +366,17 @@
             <!-- טאב 4: ניהול משתמשים וטורנירים (Owner Only) -->
             <section id="tab-users" class="tab-section hidden">
                 <div class="card">
-                    <h2>👑 פאנל ניהול בעלים (Owner Dashboard)</h2>
-                    <p class="role-notice">אזור זה מורשה ונגיש אך ורק עבור <strong>noamsee@gmail.com</strong>.</p>
+                    <h2 class="dash-title">👑 ניהול מערכת</h2>
+                    <!-- ניווט פנימי של ניהול המערכת: תמיד מוצג, ורק חלק אחד פתוח בכל רגע -->
+                    <nav class="dash-tabs" aria-label="ניהול מערכת">
+                        <button type="button" class="dash-tab-btn" data-dash-tab="users" onclick="app.showDashboardSection('users')">👥 משתמשים</button>
+                        <button type="button" class="dash-tab-btn" data-dash-tab="tournaments" onclick="app.showDashboardSection('tournaments')">🏆 טורנירים</button>
+                        <button type="button" class="dash-tab-btn" data-dash-tab="audit" onclick="app.showDashboardSection('audit')">📜 יומן פעולות</button>
+                        <button type="button" class="dash-tab-btn" data-dash-tab="guests" onclick="app.showDashboardSection('guests')">👁️ סטטיסטיקת צופים</button>
+                    </nav>
                     
                     <!-- חלק 1: ניהול משתמשים כולל (Users Management) -->
-                    <div class="admin-management-box">
+                    <div class="dash-section admin-management-box" data-dash="users">
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
                             <div>
                                 <h3 style="margin: 0;">👥 ניהול משתמשים והרשאות (Users Management)</h3>
@@ -397,10 +407,9 @@
                         </div>
                     </div>
 
-                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
 
                     <!-- חלק 2: ניהול טורנירים וסגירת טורניר -->
-                    <div class="tournament-management-box">
+                    <div class="dash-section tournament-management-box" data-dash="tournaments">
                         <h3>🏆 ניהול טורנירים וסגירת טורניר</h3>
                         <p style="font-size:0.9rem; color:#6b5b45;">
                             באפשרותך להקים טורניר חדש באשף הטורניר, לסגור או לפתוח טורנירים, ולמחוק טורנירים לצמיתות (ההרשאה למחיקה שמורה ל-Owner בלבד):
@@ -417,10 +426,9 @@
                         </div>
                     </div>
 
-                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
 
                     <!-- חלק 3: יומן פעולות (Audit Trail) - לבעלים בלבד -->
-                    <div class="audit-box">
+                    <div class="dash-section audit-box" data-dash="audit">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                             <div>
                                 <h3 style="margin:0;">📜 יומן פעולות (Audit Trail)</h3>
@@ -442,10 +450,9 @@
                         <button type="button" id="auditLoadMoreBtn" class="btn-secondary btn-sm hidden" style="margin-top:10px;" onclick="app.loadAuditTrail(true)">⬇️ טען פעולות ישנות יותר</button>
                     </div>
 
-                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
 
                     <!-- חלק 4: סטטיסטיקת צופים - לבעלים בלבד -->
-                    <div class="audit-box">
+                    <div class="dash-section audit-box" data-dash="guests">
                         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                             <div>
                                 <h3 style="margin:0;">👁️ סטטיסטיקת צופים</h3>
@@ -460,10 +467,9 @@
                         </div>
                     </div>
 
-                    <hr style="border:none; border-top:1px solid #d9c9ae; margin: 30px 0;">
 
                     <!-- חלק 5: פעולות קריטיות -->
-                    <div>
+                    <div class="dash-section dash-critical" data-dash="tournaments">
                         <h3 style="color:#dc2626;">⚠️ פעולות קריטיות</h3>
                         <p style="font-size:0.9rem; color:#6b5b45;">איפוס כולל ימחק את תוצאות המשחקים ויאתחל את הטורניר למצב התחלתי.</p>
                         <button class="btn-danger" onclick="app.hardReset()">⚠️ אפס טורניר לחלוטין (Hard Reset)</button>
@@ -802,7 +808,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.55"></script>
+    <script src="./app.js?v=4.56"></script>
 </body>
 </html>
 
