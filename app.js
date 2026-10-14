@@ -985,6 +985,14 @@ class TournamentApp {
         this.openTournamentWizard();
     }
 
+    // בעלים בלבד: מבחירת הטורניר שבכניסה ישר ליומן הפעולות בניהול המערכת
+    adminChooserOpenAudit() {
+        if (this.currentRole !== 'owner') return;
+        this.closeAdminTournamentChooser();
+        try { sessionStorage.setItem('tournament_dashboard_section', 'audit'); } catch (e) {}
+        this.switchTab('users');
+    }
+
     logout() {
         // רישום הקלדות שעדיין בחוצץ לפני היציאה
         this.flushAllScoreDrafts();
@@ -1356,7 +1364,14 @@ class TournamentApp {
         const actionFilter = fillSelect(actionSelect, [...new Set(entries.map(e => e.action).filter(Boolean))].sort(), 'כל הפעולות', v => this.auditActionLabel(v));
         const search = (document.getElementById('auditSearchInput')?.value || '').trim().toLowerCase();
 
+        // "הסתר את הפעולות שלי": הבחירה נשמרת בדפדפן ונשארת גם בכניסה הבאה
+        const hideSelf = this.isAuditHideSelf();
+        const hideSelfBox = document.getElementById('auditHideSelf');
+        if (hideSelfBox) hideSelfBox.checked = hideSelf;
+        const selfEmail = (this.currentUser?.email || '').toLowerCase();
+
         const filtered = entries.filter(e =>
+            !(hideSelf && (e.email || '').toLowerCase() === selfEmail) &&
             (userFilter === 'all' || e.email === userFilter) &&
             (actionFilter === 'all' || e.action === actionFilter) &&
             (!search || `${e.details} ${e.tournamentName} ${e.name} ${e.email}`.toLowerCase().includes(search)));
@@ -1393,6 +1408,15 @@ class TournamentApp {
 
         const moreBtn = document.getElementById('auditLoadMoreBtn');
         if (moreBtn) moreBtn.classList.toggle('hidden', entries.length < (this.auditLimit || 300));
+    }
+
+    isAuditHideSelf() {
+        try { return localStorage.getItem('tournament_audit_hide_self') === '1'; } catch (e) { return false; }
+    }
+
+    onAuditHideSelfChange(checked) {
+        try { localStorage.setItem('tournament_audit_hide_self', checked ? '1' : '0'); } catch (e) {}
+        this.renderAuditTrail();
     }
 
     async loadGuestStats() {

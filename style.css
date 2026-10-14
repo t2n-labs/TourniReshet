@@ -3595,3 +3595,20 @@ body.owner-dashboard #tab-users {
     font-weight: 400;
     color: var(--text-muted);
 }
+
+/* בחירת טורניר בכניסה: כפתור המעבר ליומן הפעולות (בעלים בלבד) */
+.admin-chooser-audit {
+    margin-top: 10px;
+}
+
+/* יומן הפעולות: הסתרת הפעולות של המשתמש עצמו */
+.audit-hide-self {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-main);
+    cursor: pointer;
+    white-space: nowrap;
+}

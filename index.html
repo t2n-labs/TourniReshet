@@ -9,7 +9,12 @@
     <meta property="og:description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="stylesheet" href="./style.css?v=4.58">
+    <!-- אייקון האתר: בלשונית הדפדפן (favicon) ובמסך הבית של הטלפון -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png?v=1">
+    <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png?v=1">
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=1">
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=1">
+    <link rel="stylesheet" href="./style.css?v=4.59">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -438,6 +443,7 @@
                             <select id="auditActionFilter" class="filter-select" onchange="app.renderAuditTrail()" aria-label="סינון לפי סוג פעולה"></select>
                             <input type="search" id="auditSearchInput" class="filter-select audit-search audit-input" placeholder="חיפוש בפרטים, בטורניר או במשתמש" oninput="app.renderAuditTrail()" aria-label="חיפוש ביומן">
                             <span id="auditCount" class="audit-count"></span>
+                            <label class="audit-hide-self" title="הסתרת הפעולות שביצעת בעצמך"><input type="checkbox" id="auditHideSelf" class="audit-input" onchange="app.onAuditHideSelfChange(this.checked)"> הסתר את הפעולות שלי</label>
                         </div>
                         <div id="auditTrailContainer">
                             <!-- ייווצר דינמית ע"י ה-JS -->
@@ -626,6 +632,14 @@ git push -u origin main</pre>
                 <span class="login-choice-text">
                     <strong>צור טורניר חדש</strong>
                     <small>פתיחת אשף ההקמה של טורניר חדש</small>
+                </span>
+            </button>
+            <!-- בעלים בלבד: מעבר ישיר ליומן הפעולות במקום בחירת טורניר -->
+            <button type="button" class="login-choice-btn admin-chooser-audit owner-only" onclick="app.adminChooserOpenAudit()">
+                <span class="login-choice-icon">📜</span>
+                <span class="login-choice-text">
+                    <strong>צפה ביומן הפעולות</strong>
+                    <small>טבלת כל הפעולות של המנהלים במערכת</small>
                 </span>
             </button>
         </div>
@@ -833,7 +847,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.58"></script>
+    <script src="./app.js?v=4.59"></script>
 </body>
 </html>
 
