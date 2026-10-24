@@ -143,6 +143,11 @@ When writing code or introducing features:
 - In the management view `body.owner-dashboard` hides everything marked `.tournament-view-only`, the tabs and the banners. Its sub-sections (`users`, `tournaments`, `audit`, `guests`) are `.dash-section[data-dash]` blocks switched by `showDashboardSection`; one is visible at a time and the `.dash-tabs` bar stays on screen.
 - Mark any new tournament-specific header control with `tournament-view-only`. `switchRole` resets `body.className`, so the state is kept in `this.ownerDashboardOpen` and re-applied by `applyOwnerDashboardState`.
 
+## 📱 Home-Screen App (v4.60)
+- `manifest.json` (Android/Chrome) and the `apple-mobile-web-app-*` tags (iOS/Safari) make the site open full screen, without the address bar, when added to the home screen. All manifest paths are relative (`./`) because the site lives under a sub-path on GitHub Pages; the same files serve production and staging.
+- `viewport-fit=cover` plus `env(safe-area-inset-*)` padding on `body` (and on the fixed alert) keep content clear of the status bar and notch; in a normal browser the insets are 0.
+- `isRunningStandalone()` marks `<html>` with `standalone-app` when opened from the home screen, for any future full-screen-only styling.
+
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
 - Merge `tomer` into `main` (production) only after the owner approves the change on staging.

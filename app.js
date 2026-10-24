@@ -172,7 +172,17 @@ class TournamentApp {
         return { groupFilter, groupMatches, teamNames, teamFilter };
     }
 
+    // האפליקציה נפתחה מהאייקון במסך הבית (מסך מלא, בלי שורת הכתובת): iOS מדווח navigator.standalone, אנדרואיד display-mode
+    isRunningStandalone() {
+        const isIosStandalone = window.navigator.standalone === true;
+        const isAndroidStandalone = window.matchMedia('(display-mode: standalone)').matches;
+        return isIosStandalone || isAndroidStandalone;
+    }
+
     init() {
+        // סימון על <html> (ולא על body, שהמחלקות שלו מתאפסות בהחלפת תפקיד) לעיצוב מיוחד במסך מלא בעתיד
+        document.documentElement.classList.toggle('standalone-app', this.isRunningStandalone());
+
         // טעינת הטורניר הנבחר
         this.loadTournamentData(this.activeTournamentId);
         

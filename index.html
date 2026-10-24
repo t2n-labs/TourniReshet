@@ -2,7 +2,8 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- viewport-fit=cover: במסך מלא התוכן מתפרש עד קצוות המסך, והריווח לאזורי המגרעת נקבע ב-CSS (safe-area) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>טורנירשת - Two-Stage Tournament Manager</title>
     <meta name="description" content="Mobile Web Tournament Manager for 15 teams across 3 groups with round-robin schedule, live standings, strict no-tie validations, and top-8 playoff bracket." />
     <meta property="og:title" content="טורנירשת" />
@@ -14,7 +15,14 @@
     <link rel="icon" type="image/png" sizes="48x48" href="./favicon-48.png?v=1">
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png?v=1">
     <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=1">
-    <link rel="stylesheet" href="./style.css?v=4.59">
+    <!-- אפליקציה במסך מלא (ללא שורת הכתובת) כשמוסיפים את האתר למסך הבית: iOS לפי תגיות apple, אנדרואיד לפי ה-manifest -->
+    <link rel="manifest" href="./manifest.json?v=1">
+    <meta name="theme-color" content="#4a3c2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="טורנירשת">
+    <link rel="stylesheet" href="./style.css?v=4.60">
     <!-- Firebase SDK (Compat v10) for seamless cross-device cloud sync -->
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
@@ -847,7 +855,7 @@ git push -u origin main</pre>
     </div>
 
     <!-- טעינת סקריפט האפליקציה המלא -->
-    <script src="./app.js?v=4.59"></script>
+    <script src="./app.js?v=4.60"></script>
 </body>
 </html>
 

@@ -28,7 +28,10 @@ body {
     background-color: var(--bg-light);
     color: var(--text-main);
     margin: 0;
-    padding: 0;
+    /* במסך מלא (אפליקציה ממסך הבית) התוכן לא נכנס מתחת לשורת הסטטוס, למגרעת או לפס התחתון; בדפדפן רגיל הערכים הם 0 */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    min-height: 100vh;
+    box-sizing: border-box;
     line-height: 1.5;
 }
 
@@ -41,7 +44,7 @@ body {
 /* התראות מערכת */
 .tournament-alert {
     position: fixed;
-    top: 20px;
+    top: calc(20px + env(safe-area-inset-top, 0px)); /* מתחת לשורת הסטטוס במסך מלא */
     left: 50%;
     transform: translateX(-50%);
     z-index: 10050; /* מעל חלונות המודאל (10000), כדי שהתראה תיראה גם כשחלון פתוח */
