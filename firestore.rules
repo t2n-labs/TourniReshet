@@ -31,7 +31,9 @@ service cloud.firestore {
     // Tournaments: public to view; managers edit; only owner and developers delete.
     match /tournaments/{id} {
       allow read: if true;
-      allow create, update: if isManager();
+      // The two old sample tournaments can never be recreated, even by a browser running an old version.
+      allow create: if isManager() && !(id in ['tourney_active_2026', 'tourney_archive_2025']);
+      allow update: if isManager();
       allow delete: if isOwner() || isDeveloper();
     }
 
@@ -49,7 +51,7 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // Guest statistics: any visitor adds one small visit record; only the owner reads; nobody edits or deletes.
+    // Guest statistics: any visitor adds one small visit record; only the owner reads or deletes; nobody edits.
     match /guest_visits/{id} {
       allow create: if request.resource.data.keys().hasOnly(['ts', 'visitorId', 'tournamentId', 'tournamentName', 'groupKey', 'teamName', 'site'])
         && request.resource.data.ts is int
@@ -57,8 +59,8 @@ service cloud.firestore {
         && request.resource.data.tournamentName.size() <= 300
         && request.resource.data.teamName is string
         && request.resource.data.teamName.size() <= 200;
-      allow read: if isOwner();
-      allow update, delete: if false;
+      allow read, delete: if isOwner();
+      allow update: if false;
     }
   }
 }

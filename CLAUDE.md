@@ -152,6 +152,8 @@ When writing code or introducing features:
 - `firestore.rules` is the source of truth and is published by hand in the Firebase console, only after the matching app version is live on production. Tournaments are public to read; managers write them; only owner/developer delete. `users` is not public: a signed-in user may read only their own record, managers may list it, only the owner writes it. Keep the developer list in the rules in sync with `DEVELOPER_EMAILS`.
 - Sign-in order: `loadOwnUserDoc` (own record only) sets the role, then `startUsersSync` subscribes to the full list for managers. Never read the `users` collection before sign-in.
 - Passwords are never written to the cloud. `purgeLegacyPasswords` deletes old `password` fields when the owner signs in.
+- There are no default or sample tournaments: a tournament exists only if a manager created it. `saveTournamentsList` writes to the cloud only for a signed-in manager and only after the list has arrived from the server, so a stale browser cache cannot bring back a deleted tournament. The rules also refuse to recreate the two old sample ids.
+- The owner can delete guest statistics per tournament or all at once (`deleteGuestStats`); the deletion is logged as `guest_stats_delete`.
 
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.

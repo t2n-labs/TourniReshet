@@ -247,6 +247,7 @@ class TournamentApp {
                 if (!snapshot) return;
                 // תשובה ריקה מהמטמון המקומי בלבד אינה נחשבת, כדי לא למחוק נתונים לפני שהשרת ענה
                 if (snapshot.empty && snapshot.metadata && snapshot.metadata.fromCache) return;
+                if (!(snapshot.metadata && snapshot.metadata.fromCache)) this.tournamentsSyncedFromServer = true;
 
                 const cloudDocs = [];
                 snapshot.forEach(doc => {
@@ -371,21 +372,6 @@ class TournamentApp {
         batch.commit()
             .then(() => this.logAudit('user_edit', `מחיקת שדות סיסמה ישנים מ-${docRefs.length} משתמשים`))
             .catch(e => console.warn("[Firestore] Failed to remove legacy passwords:", e));
-    }
-
-    async uploadAllTournamentsToCloud() {
-        if (!this.db) return;
-        try {
-            const batch = this.db.batch();
-            this.tournaments.forEach(t => {
-                const docRef = this.db.collection('tournaments').doc(t.id);
-                batch.set(docRef, t, { merge: true });
-            });
-            await batch.commit();
-            console.log("[Firestore] Initial tournaments batch uploaded successfully!");
-        } catch (e) {
-            console.error("[Firestore] Failed to upload initial tournaments:", e);
-        }
     }
 
     async uploadAllUsersToCloud() {
@@ -1385,7 +1371,7 @@ class TournamentApp {
             tournament_finalize: 'סיום טורניר', board_create: 'יצירת לוח', stage_lock: 'נעילת שלב הבתים',
             team_rename: 'שינוי שם קבוצה', team_name: 'הזנת שם קבוצה', score: 'תוצאה', playoff_reset: 'איפוס פלייאוף', hard_reset: 'איפוס מלא',
             user_add: 'הוספת משתמש', user_edit: 'עדכון משתמש', user_remove: 'הסרת משתמש',
-            debug_tool: 'כלי בדיקה', export: 'ייצוא', audit_delete: 'מחיקה מהיומן'
+            debug_tool: 'כלי בדיקה', export: 'ייצוא', audit_delete: 'מחיקה מהיומן', guest_stats_delete: 'מחיקת נתוני צפייה'
         };
         return labels[action] || action;
     }
@@ -1484,6 +1470,56 @@ class TournamentApp {
         this.renderAuditTrail();
     }
 
+    // מחיקת נתוני צפייה (בעלים בלבד): שורה של טורניר אחד, או הכל כש-rowIndex הוא null
+    async deleteGuestStats(rowIndex) {
+        if (this.currentRole !== 'owner') {
+            this.showAlert("רק הבעלים רשאי למחוק נתוני צפייה.", "error");
+            return;
+        }
+        const row = rowIndex === null ? null : (this.guestStatRows || [])[rowIndex];
+        if (rowIndex !== null && !row) return;
+        const matches = (v) => !row || (v.tournamentId || v.tournamentName || '-') === row.key;
+
+        try {
+            let refs = [];
+            let localList = null;
+            if (this.db) {
+                const snapshot = await this.db.collection('guest_visits').get();
+                refs = snapshot.docs.filter(doc => matches(doc.data())).map(doc => doc.ref);
+            } else {
+                try { localList = JSON.parse(localStorage.getItem('tournament_local_guest_visits') || '[]'); } catch (e) { localList = []; }
+                refs = localList.filter(matches);
+            }
+            if (refs.length === 0) {
+                this.showAlert("לא נמצאו נתוני צפייה למחיקה.", "warning");
+                return;
+            }
+
+            const label = row ? `הטורניר "${row.name}"` : 'כל הטורנירים';
+            const confirmed = await this.confirmAction(
+                `למחוק לצמיתות ${refs.length} כניסות צופים של ${label}?\nלא ניתן לשחזר נתונים שנמחקו.`,
+                `🗑️ מחק ${refs.length} כניסות`, true);
+            if (!confirmed) return;
+
+            if (this.db) {
+                for (let i = 0; i < refs.length; i += 400) {
+                    const batch = this.db.batch();
+                    refs.slice(i, i + 400).forEach(ref => batch.delete(ref));
+                    await batch.commit();
+                }
+            } else {
+                localStorage.setItem('tournament_local_guest_visits', JSON.stringify(localList.filter(v => !matches(v))));
+            }
+
+            this.logAudit('guest_stats_delete', `מחיקת ${refs.length} כניסות צופים: ${label}`);
+            this.showAlert(`נמחקו ${refs.length} כניסות צופים.`, "success");
+            await this.loadGuestStats();
+        } catch (e) {
+            console.warn("[Audit] Failed to delete guest statistics:", e);
+            this.showAlert(`מחיקת נתוני הצפייה נכשלה: ${e.message || e}`, "error");
+        }
+    }
+
     async loadGuestStats() {
         const container = document.getElementById('guestStatsContainer');
         if (!container || this.currentRole !== 'owner') return;
@@ -1498,10 +1534,11 @@ class TournamentApp {
             const byTournament = {};
             visits.forEach(v => {
                 const key = v.tournamentId || v.tournamentName || '-';
-                if (!byTournament[key]) byTournament[key] = { name: v.tournamentName || key, list: [] };
+                if (!byTournament[key]) byTournament[key] = { key, name: v.tournamentName || key, list: [] };
                 byTournament[key].list.push(v);
             });
             const rows = Object.values(byTournament).sort((a, b) => b.list.length - a.list.length);
+            this.guestStatRows = rows.map(r => ({ key: r.key, name: r.name }));
 
             const tile = (value, label) => `<div class="stat-tile"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
             container.innerHTML = `
@@ -1514,19 +1551,21 @@ class TournamentApp {
                 ${rows.length === 0 ? '<p class="placeholder-text">עדיין לא נרשמו כניסות צופים.</p>' : `
                     <div class="audit-table-wrap">
                         <table class="admins-table">
-                            <thead><tr><th>טורניר</th><th>כניסות</th><th>צופים ייחודיים</th><th>כניסה אחרונה</th></tr></thead>
+                            <thead><tr><th>טורניר</th><th>כניסות</th><th>צופים ייחודיים</th><th>כניסה אחרונה</th><th>פעולות</th></tr></thead>
                             <tbody>
-                                ${rows.map(r => `
+                                ${rows.map((r, i) => `
                                     <tr>
                                         <td style="font-weight:700;">${this.escapeHtml(r.name)}</td>
                                         <td>${r.list.length}</td>
                                         <td>${uniqueCount(r.list)}</td>
                                         <td><bdi>${this.formatLogTime(Math.max(...r.list.map(v => v.ts)))}</bdi></td>
+                                        <td><button type="button" class="btn-danger-delete btn-sm" onclick="app.deleteGuestStats(${i})" title="מחיקת נתוני הצפייה של הטורניר הזה">🗑️ מחק</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
                     </div>
+                    <button type="button" class="btn-danger-delete btn-sm" style="margin-top:10px;" onclick="app.deleteGuestStats(null)">🗑️ מחק את כל סטטיסטיקת הצופים</button>
                 `}
             `;
         } catch (e) {
@@ -2005,25 +2044,14 @@ class TournamentApp {
                             t.name = t.name.replace(/(\s*\(ארכיון\))+/g, '').trim();
                         }
                     });
-                    return list;
+                    // טורנירי הדוגמה של גרסאות קודמות לא נטענים גם אם נשארו בזיכרון הדפדפן
+                    return list.filter(t => !['tourney_active_2026', 'tourney_archive_2025'].includes(t.id));
                 }
             } catch {}
         }
 
-        // יצירת שני טורנירים ראשוניים: טורניר פעיל + ארכיון 2025 מוכן ומלא
-        const activeTourney = {
-            id: 'tourney_active_2026',
-            name: 'טורניר עונת 2026 (פעיל)',
-            createdAt: '2026-09-01',
-            isArchived: false,
-            teams: [...this.defaultTeams]
-        };
-
-        const archiveTourney = this.createMockArchiveTournament2025();
-
-        const initialList = [activeTourney, archiveTourney];
-        localStorage.setItem('tournament_manager_tournaments_list', JSON.stringify(initialList));
-        return initialList;
+        // אין טורנירי ברירת מחדל: טורניר נוצר רק כשמנהל מקים אותו באשף
+        return [];
     }
 
     saveTournamentsListLocally() {
@@ -2032,7 +2060,9 @@ class TournamentApp {
 
     saveTournamentsList() {
         this.saveTournamentsListLocally();
-        if (this.db) {
+        // כתיבה לענן רק למנהל מחובר, ורק אחרי שהרשימה נטענה מהשרת: רשימה ישנה מזיכרון הדפדפן
+        // לא תעלה לענן, וכך טורניר שנמחק לא יחזור
+        if (this.db && this.tournamentsSyncedFromServer && this.currentUser && this.isManagerRole(this.currentUser.role)) {
             try {
                 const batch = this.db.batch();
                 this.tournaments.forEach(t => {
@@ -2044,134 +2074,6 @@ class TournamentApp {
                 console.warn("[Firestore] Error in saveTournamentsList:", e);
             }
         }
-    }
-
-    createMockArchiveTournament2025() {
-        // טורניר עבר לדוגמה עם כל 30 המשחקים משוחקים, טבלאות מלאות ואלופה מוכתרת
-        const teams = [...this.defaultTeams];
-        const groups = {
-            'Group A': teams.slice(0, 5).map((name, i) => ({ index: i, name, group: 'Group A' })),
-            'Group B': teams.slice(5, 10).map((name, i) => ({ index: i + 5, name, group: 'Group B' })),
-            'Group C': teams.slice(10, 15).map((name, i) => ({ index: i + 10, name, group: 'Group C' }))
-        };
-
-        const roundRobinTemplate = [
-            [ { home: 0, away: 4 }, { home: 1, away: 3 } ],
-            [ { home: 4, away: 3 }, { home: 0, away: 2 } ],
-            [ { home: 1, away: 4 }, { home: 2, away: 3 } ],
-            [ { home: 4, away: 2 }, { home: 0, away: 1 } ],
-            [ { home: 3, away: 0 }, { home: 1, away: 2 } ]
-        ];
-
-        const matches = [];
-        let matchCounter = 1;
-        const groupConfigs = [
-            { key: 'Group A', nameHe: "בית א'", startIndex: 0 },
-            { key: 'Group B', nameHe: "בית ב'", startIndex: 5 },
-            { key: 'Group C', nameHe: "בית ג'", startIndex: 10 }
-        ];
-
-        groupConfigs.forEach(grp => {
-            roundRobinTemplate.forEach((roundPairs, roundIdx) => {
-                const roundNum = roundIdx + 1;
-                roundPairs.forEach(pair => {
-                    const t1Idx = grp.startIndex + pair.home;
-                    const t2Idx = grp.startIndex + pair.away;
-                    const s1 = 70 + ((matchCounter * 7) % 27);
-                    let s2 = 65 + ((matchCounter * 11) % 29);
-                    if (s1 === s2) s2 += 3;
-
-                    matches.push({
-                        id: `match_arch_${matchCounter}`,
-                        matchNumber: matchCounter,
-                        groupId: grp.key,
-                        groupNameHe: grp.nameHe,
-                        round: roundNum,
-                        team1Index: t1Idx,
-                        team2Index: t2Idx,
-                        team1Name: teams[t1Idx],
-                        team2Name: teams[t2Idx],
-                        score1: s1,
-                        score2: s2,
-                        winner: s1 > s2 ? 'team1' : 'team2'
-                    });
-                    matchCounter++;
-                });
-            });
-        });
-
-        // חישוב טבלאות
-        const standings = {};
-        ['Group A', 'Group B', 'Group C'].forEach(grpKey => {
-            const grpTeams = groups[grpKey];
-            const stats = grpTeams.map(t => ({
-                teamIndex: t.index,
-                teamName: teams[t.index],
-                group: grpKey,
-                played: 4,
-                wins: 0,
-                losses: 0,
-                pointsFor: 0,
-                pointsAgainst: 0,
-                pointDiff: 0
-            }));
-
-            matches.filter(m => m.groupId === grpKey).forEach(m => {
-                const t1 = stats.find(s => s.teamIndex === m.team1Index);
-                const t2 = stats.find(s => s.teamIndex === m.team2Index);
-                if (t1 && t2) {
-                    t1.pointsFor += m.score1; t1.pointsAgainst += m.score2;
-                    t2.pointsFor += m.score2; t2.pointsAgainst += m.score1;
-                    if (m.winner === 'team1') { t1.wins++; t2.losses++; }
-                    else { t2.wins++; t1.losses++; }
-                }
-            });
-
-            stats.forEach(s => { s.pointDiff = s.pointsFor - s.pointsAgainst; });
-            stats.sort((a, b) => (b.wins !== a.wins ? b.wins - a.wins : b.pointDiff - a.pointDiff));
-            stats.forEach((s, idx) => { s.groupRank = idx + 1; });
-            standings[grpKey] = stats;
-        });
-
-        const playoffSeeds = [
-            { seed: 1, ...standings['Group A'][0] },
-            { seed: 2, ...standings['Group B'][0] },
-            { seed: 3, ...standings['Group C'][0] },
-            { seed: 4, ...standings['Group A'][1] },
-            { seed: 5, ...standings['Group B'][1] },
-            { seed: 6, ...standings['Group C'][1] },
-            { seed: 7, ...standings['Group A'][2] },
-            { seed: 8, ...standings['Group B'][2] }
-        ];
-
-        const playoffMatches = {
-            qf: [
-                { id: 'qf_1', roundName: 'רבע גמר 1', seed1: 1, seed2: 8, team1: playoffSeeds[0], team2: playoffSeeds[7], score1: 88, score2: 78, winner: 'team1', nextMatchId: 'sf_1', nextSlot: 1 },
-                { id: 'qf_2', roundName: 'רבע גמר 2', seed1: 4, seed2: 5, team1: playoffSeeds[3], team2: playoffSeeds[4], score1: 82, score2: 80, winner: 'team1', nextMatchId: 'sf_1', nextSlot: 2 },
-                { id: 'qf_3', roundName: 'רבע גמר 3', seed1: 3, seed2: 6, team1: playoffSeeds[2], team2: playoffSeeds[5], score1: 91, score2: 85, winner: 'team1', nextMatchId: 'sf_2', nextSlot: 1 },
-                { id: 'qf_4', roundName: 'רבע גמר 4', seed1: 2, seed2: 7, team1: playoffSeeds[1], team2: playoffSeeds[6], score1: 89, score2: 83, winner: 'team1', nextMatchId: 'sf_2', nextSlot: 2 }
-            ],
-            sf: [
-                { id: 'sf_1', roundName: 'חצי גמר 1', team1: playoffSeeds[0], team2: playoffSeeds[3], score1: 94, score2: 88, winner: 'team1', nextMatchId: 'final', nextSlot: 1 },
-                { id: 'sf_2', roundName: 'חצי גמר 2', team1: playoffSeeds[2], team2: playoffSeeds[1], score1: 85, score2: 90, winner: 'team2', nextMatchId: 'final', nextSlot: 2 }
-            ],
-            final: {
-                id: 'final', roundName: '🏆 משחק הגמר', team1: playoffSeeds[0], team2: playoffSeeds[1], score1: 92, score2: 87, winner: 'team1'
-            }
-        };
-
-        return {
-            id: 'tourney_archive_2025',
-            name: 'טורניר עונת 2025 (ארכיון תוצאות)',
-            createdAt: '2025-10-15',
-            isArchived: true,
-            teams,
-            groups,
-            matches,
-            standings,
-            playoffSeeds,
-            playoffMatches
-        };
     }
 
     populateTournamentSelectors() {
