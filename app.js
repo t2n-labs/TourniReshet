@@ -219,7 +219,7 @@ class TournamentApp {
     initFirebaseAuthListener() {
         if (!this.auth) return;
 
-        this.auth.onAuthStateChanged(user => {
+        this.auth.onAuthStateChanged(async user => {
             if (user) {
                 console.log("[Firebase Auth] User state changed: Logged in as", user.email);
                 const email = (user.email || '').toLowerCase();
@@ -227,9 +227,13 @@ class TournamentApp {
                 const provider = user.providerData && user.providerData[0] && user.providerData[0].providerId === 'google.com'
                     ? 'google'
                     : 'email';
+                // התפקיד נקבע לפי המסמך של המשתמש עצמו; רשימת כל המשתמשים נטענת רק למנהל מחובר
+                await this.loadOwnUserDoc(email);
                 this.authenticateUser(email, false, displayName, provider);
+                if (this.isManagerRole()) this.startUsersSync();
             } else {
                 console.log("[Firebase Auth] User state changed: Signed out");
+                this.stopUsersSync();
             }
         });
     }
@@ -301,14 +305,48 @@ class TournamentApp {
             console.error("[Firestore] Error setting up tournaments listener:", e);
         }
 
-        // 2. האזנה בזמן אמת למשתמשי המערכת
+    }
+
+    userDocId(email) {
+        return (email || '').toLowerCase().replace(/[^a-z0-9_.-]/g, '_');
+    }
+
+    // טוען רק את המסמך של המשתמש שהתחבר. לפי חוקי האבטחה משתמש רגיל יכול לקרוא רק את המסמך של עצמו
+    async loadOwnUserDoc(email) {
+        if (!this.db || !email) return;
+        const clean = email.toLowerCase();
+        try {
+            const snap = await this.db.collection('users').doc(this.userDocId(clean)).get();
+            const users = this.getUnifiedUsers().filter(u => (u.email || '').toLowerCase() !== clean);
+            if (snap.exists) {
+                const { password, ...data } = snap.data();
+                users.push(data);
+            }
+            this.saveUnifiedUsersLocally(users);
+        } catch (e) {
+            console.warn("[Firestore] Failed to load the signed-in user:", e);
+        }
+    }
+
+    stopUsersSync() {
+        if (this.unsubscribeUsers) this.unsubscribeUsers();
+        this.unsubscribeUsers = null;
+    }
+
+    // האזנה בזמן אמת למשתמשי המערכת: למנהלים מחוברים בלבד
+    startUsersSync() {
+        if (!this.db || this.unsubscribeUsers) return;
         try {
             this.unsubscribeUsers = this.db.collection('users').onSnapshot(snapshot => {
                 if (snapshot && !snapshot.empty) {
                     const cloudUsers = [];
+                    const legacyPasswordDocs = [];
                     snapshot.forEach(doc => {
-                        cloudUsers.push(doc.data());
+                        const { password, ...data } = doc.data();
+                        cloudUsers.push(data);
+                        if (password !== undefined) legacyPasswordDocs.push(doc.ref);
                     });
+                    this.purgeLegacyPasswords(legacyPasswordDocs);
                     this.saveUnifiedUsersLocally(cloudUsers);
                     this.renderUsersManagement();
                     console.log("[Firestore] Real-time sync: Received updated users list (" + cloudUsers.length + ")");
@@ -317,10 +355,22 @@ class TournamentApp {
                 }
             }, err => {
                 console.warn("[Firestore] Users snapshot error:", err);
+                this.unsubscribeUsers = null;
             });
         } catch (e) {
             console.error("[Firestore] Error setting up users listener:", e);
         }
+    }
+
+    // הכניסה למערכת היא דרך Google בלבד, ולכן שדות סיסמה שנשארו מגרסאות קודמות נמחקים מהענן (בכניסת הבעלים)
+    purgeLegacyPasswords(docRefs) {
+        const authEmail = (this.auth?.currentUser?.email || '').toLowerCase();
+        if (docRefs.length === 0 || authEmail !== this.OWNER_EMAIL.toLowerCase()) return;
+        const batch = this.db.batch();
+        docRefs.forEach(ref => batch.update(ref, { password: firebase.firestore.FieldValue.delete() }));
+        batch.commit()
+            .then(() => this.logAudit('user_edit', `מחיקת שדות סיסמה ישנים מ-${docRefs.length} משתמשים`))
+            .catch(e => console.warn("[Firestore] Failed to remove legacy passwords:", e));
     }
 
     async uploadAllTournamentsToCloud() {
@@ -347,7 +397,8 @@ class TournamentApp {
                 const docId = (u.email || '').toLowerCase().replace(/[^a-z0-9_.-]/g, '_');
                 if (docId) {
                     const docRef = this.db.collection('users').doc(docId);
-                    batch.set(docRef, u, { merge: true });
+                    const { password, ...safeUser } = u; // סיסמאות אינן נשמרות בענן (כניסה דרך Google בלבד)
+                    batch.set(docRef, safeUser, { merge: true });
                 }
             });
             await batch.commit();
@@ -374,6 +425,7 @@ class TournamentApp {
             const picture = user.photoURL || '';
 
             const isOwner = (email === this.OWNER_EMAIL.toLowerCase());
+            await this.loadOwnUserDoc(email);
             const existingUser = this.getUserByEmail(email);
             const isAdmin = this.isDeveloperEmail(email) || this.isBuiltInAdminEmail(email) || (existingUser && (existingUser.role === 'admin' || existingUser.role === 'owner'));
 
@@ -417,6 +469,7 @@ class TournamentApp {
             const picture = user.photoURL || '';
 
             const isOwner = (email === this.OWNER_EMAIL.toLowerCase());
+            await this.loadOwnUserDoc(email);
             const existingUser = this.getUserByEmail(email);
             const isAdmin = this.isDeveloperEmail(email) || this.isBuiltInAdminEmail(email) || (existingUser && (existingUser.role === 'admin' || existingUser.role === 'owner'));
 
@@ -643,7 +696,8 @@ class TournamentApp {
                     const docId = (u.email || '').toLowerCase().replace(/[^a-z0-9_.-]/g, '_');
                     if (docId) {
                         const docRef = this.db.collection('users').doc(docId);
-                        batch.set(docRef, u, { merge: true });
+                        const { password, ...safeUser } = u; // סיסמאות אינן נשמרות בענן (כניסה דרך Google בלבד)
+                        batch.set(docRef, safeUser, { merge: true });
                     }
                 });
                 batch.commit().catch(e => console.warn("[Firestore] Failed to save users batch:", e));
@@ -1004,6 +1058,7 @@ class TournamentApp {
     }
 
     logout() {
+        this.stopUsersSync();
         // רישום הקלדות שעדיין בחוצץ לפני היציאה
         this.flushAllScoreDrafts();
         this.finishPlayoffEditing();

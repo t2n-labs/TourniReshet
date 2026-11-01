@@ -133,7 +133,7 @@ When writing code or introducing features:
 - Every manager action (owner, developer, admin) is appended to the Firestore collection `audit_log` by `logAudit(action, details, tourney?)`: who, when (`ts`), role, tournament, and a Hebrew description. Add a `logAudit` call to any new action that changes data, and a label in `auditActionLabel`.
 - Score edits are logged once per game, a few seconds after the last keystroke (`queueScoreAudit`), not per digit.
 - Viewers are not audited. `logGuestVisit` appends one document to `guest_visits` per viewer entry (tournament, time, random per-browser id) for the statistics tiles.
-- Both views live in the owner tab and are loaded only when `currentRole === "owner"`. Real protection needs the rules in `firestore.rules` to be published in the Firebase console - the client check alone does not stop someone reading the collection directly.
+- Both views live in the owner tab and are loaded only when `currentRole === "owner"`. Real protection comes from `firestore.rules` once published; the client check alone does not stop someone reading the collection directly.
 - The owner can delete audit entries from the dashboard (`deleteAuditEntries`): all, one user, or a date range. The matching count is shown in the confirmation, and the deletion itself is logged as `audit_delete`.
 - Irreversible actions ask for confirmation with the in-app `confirmAction(message, label, danger)` (returns a Promise), never the browser `confirm()`, which browsers can silently suppress.
 - Tournament results are reset per row in the dashboard tournaments list (`resetTournamentResults`): scores and playoff seeding are cleared, teams and structure stay.
@@ -147,6 +147,11 @@ When writing code or introducing features:
 - `manifest.json` (Android/Chrome) and the `apple-mobile-web-app-*` tags (iOS/Safari) make the site open full screen, without the address bar, when added to the home screen. All manifest paths are relative (`./`) because the site lives under a sub-path on GitHub Pages; the same files serve production and staging.
 - `viewport-fit=cover` plus `env(safe-area-inset-*)` padding on `body` (and on the fixed alert) keep content clear of the status bar and notch; in a normal browser the insets are 0.
 - `isRunningStandalone()` marks `<html>` with `standalone-app` when opened from the home screen, for any future full-screen-only styling.
+
+## 🔐 Firestore Security (v4.62)
+- `firestore.rules` is the source of truth and is published by hand in the Firebase console, only after the matching app version is live on production. Tournaments are public to read; managers write them; only owner/developer delete. `users` is not public: a signed-in user may read only their own record, managers may list it, only the owner writes it. Keep the developer list in the rules in sync with `DEVELOPER_EMAILS`.
+- Sign-in order: `loadOwnUserDoc` (own record only) sets the role, then `startUsersSync` subscribes to the full list for managers. Never read the `users` collection before sign-in.
+- Passwords are never written to the cloud. `purgeLegacyPasswords` deletes old `password` fields when the owner signs in.
 
 ## 🚦 Staging Workflow
 - Changes go to the `tomer` branch first and are deployed to the staging site `https://t2n-labs.github.io/TourniReshet-staging/` (repo `t2n-labs/TourniReshet-staging`, GitHub Pages from its `tomer` branch). Deploy by pushing the same commit to that repo.
